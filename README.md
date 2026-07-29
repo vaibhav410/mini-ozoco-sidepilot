@@ -1,4 +1,4 @@
-# 🚀 Mini OZOCO SidePilot AI System
+#  Mini OZOCO SidePilot AI System
 
 **Document intelligence with RAG and a two-agent workflow** — upload a PDF/TXT, let **Agent 1** understand and classify it, then ask questions and let **Agent 2** answer with grounded, source-referenced responses powered by Google Gemini.
 
@@ -10,9 +10,9 @@ Built as the practical assignment for the internship selection process at **OZOC
 ![Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4?logo=google&logoColor=white)
 ![FAISS](https://img.shields.io/badge/FAISS-Vector%20Search-0467DF)
 
-> **🌐 Live demo:** https://ozoco-sidepilot.onrender.com — *free tier: after 15 min idle the first visit takes ~1 minute to wake up, then it's fast.*
-> **🎬 Demo video:** [video.mp4](video.mp4) — walkthrough of upload, both agents, grounded answers, and the anti-hallucination check
-> **📦 Repository:** https://github.com/vaibhav410/mini-ozoco-sidepilot
+> ** Live demo:** https://ozoco-sidepilot.onrender.com — *free tier: after 15 min idle the first visit takes ~1 minute to wake up, then it's fast.*
+> ** Demo video:** [video.mp4](video.mp4) — walkthrough of upload, both agents, grounded answers, and the anti-hallucination check
+> ** Repository:** https://github.com/vaibhav410/mini-ozoco-sidepilot
 
 ---
 
