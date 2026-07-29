@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Uploaded documents (user data, not source code)
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# Local-only artifacts (kept on disk, not part of the repository)
+*.docx
+Dockerfile
+.dockerignore
+DEMO_GUIDE.md
+DESIGN_DOCUMENT.md
+INTERVIEW_PREP.md
+VIDEO_SCRIPT.md

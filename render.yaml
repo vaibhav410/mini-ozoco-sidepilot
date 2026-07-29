@@ -1,0 +1,23 @@
+# Render Blueprint -- deploys the Mini OZOCO SidePilot AI System.
+# Free tier: 512 MB RAM, sleeps after 15 min idle (first request wakes it).
+services:
+  - type: web
+    name: ozoco-sidepilot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: EMBEDDINGS_BACKEND
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GOOGLE_API_KEY
+        sync: false # secret -- set in the Render dashboard
+      - key: GROQ_API_KEY
+        sync: false # secret -- set in the Render dashboard

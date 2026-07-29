@@ -1,0 +1,48 @@
+SAMPLE RESUME (fictional - for demo purposes only)
+
+ARJUN MEHTA
+AI/ML Engineer
+Email: arjun.mehta.demo@example.com | Phone: +91-90000-00000
+Location: Bengaluru, India
+
+PROFESSIONAL SUMMARY
+AI/ML engineer with 2 years of hands-on experience building machine
+learning pipelines, LLM-powered applications, and REST APIs. Strong
+background in Python, LangChain, and cloud deployment. Passionate about
+retrieval-augmented generation and agentic systems.
+
+TECHNICAL SKILLS
+- Languages: Python, SQL, JavaScript
+- AI/ML: LangChain, RAG pipelines, Hugging Face Transformers, scikit-learn
+- Backends: FastAPI, Flask, REST API design
+- Data: FAISS, PostgreSQL, Pandas, NumPy
+- Tools: Git, Docker, Linux, VS Code
+
+WORK EXPERIENCE
+
+Machine Learning Engineer - NovaTech Labs (2024 - Present)
+- Built a document question-answering system using LangChain and FAISS,
+  reducing support ticket resolution time by 40 percent.
+- Deployed FastAPI microservices serving 50,000 requests per day.
+- Fine-tuned sentence-transformer models for domain-specific semantic search.
+
+Software Engineering Intern - CloudSprint (2023 - 2024)
+- Developed internal dashboards with Python and REST APIs.
+- Automated data ingestion pipelines, saving 10 hours of manual work weekly.
+
+PROJECTS
+- ResuMatch: an AI tool that matches resumes to job descriptions using
+  embeddings and cosine similarity.
+- DocChat: a chatbot that answers questions over uploaded PDFs using
+  retrieval-augmented generation with Gemini.
+
+EDUCATION
+B.Tech in Computer Science - Meridian Institute of Technology (2019 - 2023)
+CGPA: 8.7/10
+
+CERTIFICATIONS
+- Deep Learning Specialization
+- Google Cloud Associate Engineer
+
+LANGUAGES
+English (fluent), Hindi (native)

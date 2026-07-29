@@ -1,0 +1,43 @@
+SAMPLE INVOICE (fictional - for demo purposes only)
+
+INVOICE #INV-2026-0147
+Date: July 15, 2026
+Due Date: August 14, 2026
+
+FROM:
+PixelForge Design Studio
+221 Creative Park, Indiranagar
+Bengaluru, Karnataka 560038
+GSTIN: 29ABCDE1234F1Z5
+
+BILL TO:
+Horizon Retail Pvt Ltd
+14 Commerce Tower, MG Road
+Pune, Maharashtra 411001
+
+DESCRIPTION OF SERVICES
+
+1. Website redesign (homepage + 5 inner pages)
+   Quantity: 1 | Rate: Rs. 85,000 | Amount: Rs. 85,000
+
+2. Mobile app UI kit (40 screens)
+   Quantity: 1 | Rate: Rs. 60,000 | Amount: Rs. 60,000
+
+3. Brand style guide document
+   Quantity: 1 | Rate: Rs. 25,000 | Amount: Rs. 25,000
+
+4. Monthly design support retainer (July 2026)
+   Quantity: 1 | Rate: Rs. 30,000 | Amount: Rs. 30,000
+
+SUBTOTAL: Rs. 2,00,000
+GST (18%): Rs. 36,000
+TOTAL AMOUNT DUE: Rs. 2,36,000
+
+PAYMENT TERMS
+Payment due within 30 days of invoice date.
+Bank transfer to: PixelForge Design Studio, A/C 000111222333,
+IFSC: DEMO0001234, Demo Bank, Indiranagar Branch.
+
+NOTES
+A late fee of 1.5 percent per month applies to overdue balances.
+Thank you for your business!
