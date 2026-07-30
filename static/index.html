@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>OZOCO SidePilot</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M22 14h14l8 8v22a3 3 0 0 1-3 3H22a3 3 0 0 1-3-3V17a3 3 0 0 1 3-3z' fill='none' stroke='white' stroke-width='3.5' stroke-linejoin='round'/%3E%3Cpath d='M36 14v8h8' fill='none' stroke='white' stroke-width='3.5' stroke-linejoin='round'/%3E%3Ccircle cx='30' cy='33' r='5' fill='none' stroke='white' stroke-width='3'/%3E%3Cpath d='m34 37 5 5' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,7 +38,10 @@
     -webkit-font-smoothing: antialiased;
     display: flex; flex-direction: column;
     overflow: hidden;
+    overflow-x: hidden;
+    height: 100dvh; /* mobile browsers: track the real visible viewport */
   }
+  @supports not (height: 100dvh) { body { height: 100vh; } }
   ::selection { background: rgba(255,255,255,.22); }
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
@@ -67,7 +70,7 @@
     font-size: 13px; font-weight: 500; color: var(--text-2);
     background: none; border: none; cursor: pointer;
     padding: 7px 12px; border-radius: 999px; text-decoration: none;
-    transition: all .15s ease;
+    transition: all .15s ease; white-space: nowrap;
   }
   .nav-link:hover { color: var(--text); background: var(--surface-2); }
   .nav-right { display: flex; align-items: center; gap: 10px; }
@@ -90,7 +93,7 @@
     font-size: 13px; font-weight: 600; color: #000;
     background: var(--white); border: 1px solid var(--white);
     border-radius: 8px; padding: 7px 15px; cursor: pointer; transition: all .15s ease;
-    text-decoration: none;
+    text-decoration: none; white-space: nowrap;
   }
   .btn-solid:hover { background: #d9d9d9; border-color: #d9d9d9; }
 
@@ -202,6 +205,7 @@
   /* scope dropdown */
   .scope-menu {
     position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 230px;
+    max-width: calc(100vw - 44px);
     background: var(--surface-2); border: 1px solid var(--border-2);
     border-radius: 10px; padding: 5px; z-index: 30; display: none;
     box-shadow: 0 16px 48px rgba(0,0,0,.6);
@@ -234,7 +238,7 @@
   /* ================= Turns (Perplexity-style) ================= */
   .turn { padding: 24px 0; animation: fadeUp .35s ease both; }
   .turn + .turn { border-top: 1px solid var(--border); }
-  .turn-q { font-size: 19px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.35; color: var(--white); }
+  .turn-q { font-size: 19px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.35; color: var(--white); overflow-wrap: break-word; }
   .turn-body { margin-top: 15px; }
 
   .src-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
@@ -266,7 +270,7 @@
     font-size: 10px; font-weight: 650; color: var(--amber);
     background: var(--amber-dim); border-radius: 999px; padding: 2.5px 9px;
   }
-  .ans-body { font-size: 14.5px; line-height: 1.75; }
+  .ans-body { font-size: 14.5px; line-height: 1.75; overflow-wrap: break-word; }
   .ans-body p { margin: 6px 0; }
   .ans-body ul { margin: 8px 0 8px 20px; }
   .ans-body li { margin: 4px 0; }
@@ -308,38 +312,67 @@
     .composer-wrap { padding: 20px 18px 0; }
   }
   @media (max-width: 720px) {
-    .nav { padding: 0 10px; gap: 6px; height: 52px; }
+    .nav { padding: 0 max(10px, env(safe-area-inset-left)) 0 max(10px, env(safe-area-inset-right)); gap: 6px; height: 52px; }
     .logo-name { display: none; }
     .nav-links { margin: 0 auto; gap: 0; }
-    .nav-link { padding: 6px 8px; font-size: 12px; }
-    .btn-solid { padding: 6px 11px; font-size: 12px; }
+    .nav-link { padding: 8px 8px; font-size: 12px; }
+    .btn-solid { padding: 7px 11px; font-size: 12px; }
     .status-chip { padding: 5px 9px; font-size: 11px; }
-    .hero { padding: 0 16px 14vh; }
+    .hero { padding: 0 16px 12vh; }
     .hero h1 { font-size: clamp(24px, 7.5vw, 32px); }
     .hero-sub { font-size: 12.5px; padding: 0 8px; }
     .composer-wrap { padding: 18px 14px 0; }
-    body.chatting .composer-wrap { padding: 8px 12px 12px; }
+    body.chatting .composer-wrap {
+      padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+    }
     .composer { padding: 10px 12px; border-radius: 14px; }
-    #questionInput { font-size: 14px; }
+    /* 16px prevents iOS Safari from auto-zooming the page on focus */
+    #questionInput { font-size: 16px; }
     .composer-bottom { flex-wrap: wrap; gap: 6px; }
-    .scope-btn, .upload-btn { padding: 5px 11px; font-size: 11.5px; }
+    .scope-btn, .upload-btn { padding: 7px 11px; font-size: 11.5px; }
     .scope-menu { min-width: 200px; }
+    #sendBtn { width: 38px; height: 38px; }
     .suggs { gap: 7px; margin-top: 18px; padding: 0 10px; }
-    .sugg { font-size: 12px; padding: 7px 13px; }
+    .sugg { font-size: 12px; padding: 8px 13px; }
     .thread-inner { padding: 18px 14px 8px; }
     .turn { padding: 20px 0; }
     .turn-q { font-size: 16.5px; }
     .ans-body { font-size: 13.5px; line-height: 1.7; }
     .src-card { min-width: 108px; max-width: 150px; padding: 8px 9px; }
     .doc-chip { max-width: 160px; font-size: 11.5px; }
-    .toasts { left: 14px; right: 14px; bottom: 14px; }
+    .toasts { left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); }
     .toast { max-width: none; }
+  }
+  /* large phones (Pro Max class) get slightly roomier text */
+  @media (min-width: 421px) and (max-width: 500px) {
+    .hero h1 { font-size: 28px; }
   }
   @media (max-width: 420px) {
     .status-chip span:last-child { display: none; }
     .status-chip { padding: 5px 8px; }
     .hero h1 { font-size: 23px; }
     .src-strip { gap: 6px; }
+  }
+  /* very small phones (320-360px) */
+  @media (max-width: 360px) {
+    .nav-link { padding: 8px 5px; font-size: 11px; }
+    .btn-solid { padding: 6px 8px; font-size: 10.5px; }
+    .hero h1 { font-size: 21px; }
+    .hero-sub { font-size: 11.5px; }
+    .sugg { font-size: 11px; padding: 7px 11px; }
+    .sugg svg { display: none; }
+    .scope-btn, .upload-btn { padding: 6px 9px; font-size: 11px; }
+    .doc-chip { max-width: 130px; font-size: 11px; }
+    .src-card { min-width: 96px; max-width: 132px; }
+  }
+  /* phone landscape: keep the composer reachable without scrolling */
+  @media (max-height: 520px) and (max-width: 950px) {
+    .hero { justify-content: flex-start; padding-top: 20px; padding-bottom: 12px; }
+    .hero h1 { font-size: 22px; }
+    .hero-sub { margin-top: 6px; font-size: 11.5px; }
+    .composer-wrap { padding-top: 12px; }
+    .suggs { margin-top: 12px; }
+    .turn { padding: 14px 0; }
   }
 </style>
 </head>
