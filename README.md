@@ -1,6 +1,6 @@
 #  Mini OZOCO SidePilot AI System
 
-**Document intelligence with RAG and a two-agent workflow** — upload a PDF/TXT, let **Agent 1** understand and classify it, then ask questions and let **Agent 2** answer with grounded, source-referenced responses powered by Google Gemini.
+**Document intelligence with conversational RAG and a three-agent workflow** — upload a PDF/TXT, let **Agent 1** understand and classify it, ask questions (with follow-ups — full chat history support) answered by **Agent 2** with grounded, source-referenced responses, and let **Agent 3** validate every answer against the sources before it reaches you.
 
 Built as the practical assignment for the internship selection process at **OZOCO Global Pvt Ltd**.
 
@@ -20,14 +20,35 @@ Built as the practical assignment for the internship selection process at **OZOC
 
 Mini OZOCO SidePilot is a small AI system that answers natural-language questions about your documents — **without hallucinating**. Every answer is generated strictly from retrieved document content (Retrieval-Augmented Generation), and when the answer is not in your documents, the system says so explicitly.
 
-**The two-agent workflow:**
+**The three-agent workflow:**
 
 | Agent | Runs at | Job |
 |---|---|---|
 | 🧠 **Agent 1** — Document Understanding | Upload time | Extracts text, classifies the document (Resume / Invoice / Research Paper / Report / General Document), writes a summary, produces metadata |
-| 💬 **Agent 2** — Response Generation & Routing | Question time | Routes the question to the relevant document, retrieves top-k chunks from FAISS, builds a grounded prompt, calls Gemini, returns the answer **with source references** |
+| 💬 **Agent 2** — Response Generation & Routing | Question time | Resolves follow-up questions using chat history, routes the question to the relevant document, retrieves top-k chunks from FAISS, builds a grounded prompt, generates the answer **with source references** |
+| 🛡️ **Agent 3** — Answer Validation | After each answer | Fact-checks Agent 2's draft against the retrieved context; unsupported answers are withheld and replaced with an explicit "not found" |
 
-The agents communicate through shared structured state: Agent 1 stamps every chunk with metadata and fills a document registry; Agent 2 reads both to route and answer.
+The agents communicate through shared structured state: Agent 1 stamps every chunk with metadata and fills a document registry; Agent 2 reads both to route and answer; Agent 3 receives Agent 2's draft plus its evidence and returns a structured verdict.
+
+## 📌 Requirement → Implementation Map
+
+Every expected capability, and the exact file implementing it:
+
+| Capability | Implementation |
+|---|---|
+| Text chunking (1000 chars / 150 overlap) | [app/rag/splitter.py](app/rag/splitter.py) — `RecursiveCharacterTextSplitter` |
+| Embeddings | [app/rag/embeddings.py](app/rag/embeddings.py) — HuggingFace `all-MiniLM-L6-v2` local; Gemini embedding API backend for cloud |
+| Vector database | [app/rag/vector_store.py](app/rag/vector_store.py) — **FAISS** with per-chunk metadata + filtered search |
+| Retrieval | [app/rag/retriever.py](app/rag/retriever.py) — top-k semantic search with document filter |
+| Agent 1: document processing | [app/agents/document_agent.py](app/agents/document_agent.py) |
+| Agent 2: question answering + routing | [app/agents/response_agent.py](app/agents/response_agent.py) |
+| Agent 3: answer validation | [app/agents/validation_agent.py](app/agents/validation_agent.py) |
+| Agent orchestration | [app/services/chat_service.py](app/services/chat_service.py) — condense → route → retrieve → generate → validate |
+| Chat history / follow-up questions | [app/services/history.py](app/services/history.py) + condensation in Agent 2 |
+| Multi-document support | Registry + metadata routing; `GET /documents`; per-document scope in the UI |
+| Error handling (invalid/large files, fallbacks) | [app/utils/errors.py](app/utils/errors.py), service guards, Gemini→Groq failover in [app/agents/llm.py](app/agents/llm.py) |
+| Prompt engineering (grounding + refusal rule) | [app/rag/prompt.py](app/rag/prompt.py) — all prompts in one reviewable file |
+| API-based design | FastAPI routes in [app/routes/](app/routes/), Swagger at `/docs` |
 
 ## 🏗️ Architecture
 
@@ -41,12 +62,12 @@ The agents communicate through shared structured state: Agent 1 stamps every chu
         │       FastAPI Backend        │
         │   /upload   /ask   /health   │
         └──────┬───────────────┬───────┘
-       upload  │               │  question
-        ┌──────▼──────┐ ┌──────▼───────┐
-        │   AGENT 1   │ │   AGENT 2    │
-        │  Classify + │ │   Route +    │
-        │  Summarize  │ │   Answer     │
-        └──────┬──────┘ └──────┬───────┘
+       upload  │               │  question + chat history
+        ┌──────▼──────┐ ┌──────▼───────┐ ┌──────────────┐
+        │   AGENT 1   │ │   AGENT 2    │→│   AGENT 3    │
+        │  Classify + │ │  Condense +  │ │  Validate vs │
+        │  Summarize  │ │ Route+Answer │←│   sources    │
+        └──────┬──────┘ └──────┬───────┘ └──────────────┘
                │               │ top-k retrieval
         ┌──────▼───────────────▼───────┐
         │    FAISS Vector Store        │
@@ -84,9 +105,11 @@ project/
 │   ├── routes/                 # HTTP layer only
 │   │   ├── upload.py           #   POST /upload
 │   │   └── chat.py             #   POST /ask
-│   ├── agents/                 # the two AI agents (Gemini)
+│   ├── agents/                 # the three AI agents
+│   │   ├── llm.py              #   Gemini primary + automatic Groq fallback
 │   │   ├── document_agent.py   #   Agent 1: classify + summarize
-│   │   └── response_agent.py   #   Agent 2: route + grounded answer
+│   │   ├── response_agent.py   #   Agent 2: condense + route + grounded answer
+│   │   └── validation_agent.py #   Agent 3: fact-check answers vs sources
 │   ├── rag/                    # one mechanical job per file
 │   │   ├── loader.py           #   PDF/TXT -> text
 │   │   ├── splitter.py         #   text -> chunks
@@ -95,8 +118,9 @@ project/
 │   │   ├── retriever.py        #   top-k similarity search
 │   │   └── prompt.py           #   all prompt templates
 │   ├── services/               # orchestration between routes and agents
-│   │   ├── document_service.py
-│   │   └── chat_service.py
+│   │   ├── document_service.py #   upload pipeline: validate -> Agent 1 -> index
+│   │   ├── chat_service.py     #   ask pipeline: history -> Agent 2 -> Agent 3
+│   │   └── history.py          #   session chat history (multi-turn memory)
 │   ├── models/schemas.py       # Pydantic API contracts
 │   └── utils/                  # logging + error hierarchy
 ├── static/index.html           # single-page premium UI (served at /)
@@ -162,10 +186,10 @@ curl -X POST http://localhost:8000/upload -F "file=@samples/sample_resume.txt"
 ```
 Errors: `400` unsupported/empty file · `413` too large · `502` Gemini unavailable
 
-### `POST /ask` — ask a question
+### `POST /ask` — ask a question (multi-turn)
 ```bash
 curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
-     -d "{\"question\": \"What skills are listed in the resume?\"}"
+     -d "{\"question\": \"What skills are listed in the resume?\", \"session_id\": \"demo\"}"
 ```
 ```json
 {
@@ -174,11 +198,18 @@ curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
   "sources": [
     {"filename": "sample_resume.txt", "page": null, "snippet": "TECHNICAL SKILLS - Languages: Python, SQL..."}
   ],
-  "found": true
+  "found": true,
+  "validation": {"checked": true, "supported": true, "confidence": "high"}
 }
 ```
-Off-topic questions return `"found": false` with an explicit *not found* answer — **no hallucination**.
-Errors: `400` no documents yet / empty question · `404` unknown doc_id · `502` Gemini unavailable
+Follow-up questions in the same `session_id` use chat history — *"and what about his education?"* just works.
+Off-topic questions return `"found": false` with an explicit *not found* answer — **no hallucination**. Answers Agent 3 cannot verify against the sources are **withheld**.
+Errors: `400` no documents yet / empty question · `404` unknown doc_id · `502` AI providers unavailable
+
+### `GET /documents` — list indexed documents
+```json
+{ "documents": [ {"doc_id": "a1b2c3d4", "filename": "resume.pdf", "category": "Resume", "summary": "...", "chunks": 5} ] }
+```
 
 ### `GET /health`
 ```json
@@ -189,9 +220,10 @@ Errors: `400` no documents yet / empty question · `404` unknown doc_id · `502`
 
 1. **Upload** — file is validated (type, ≤10 MB), saved, and its text extracted.
 2. **Agent 1** classifies the document, writes a 2–3 sentence summary and key topics.
-3. **Indexing** — text is chunked (1000 chars, 150 overlap), embedded locally, and stored in FAISS with Agent 1's metadata on every chunk.
-4. **Ask** — **Agent 2** routes the question to the right document using the registry, retrieves the top-4 most similar chunks, and builds a grounded prompt.
-5. **Answer** — Gemini responds using *only* the retrieved context; the API returns the answer with source snippets, or an explicit "not found" when the documents don't contain the answer.
+3. **Indexing** — text is chunked (1000 chars, 150 overlap), embedded, and stored in FAISS with Agent 1's metadata on every chunk.
+4. **Ask** — if the question is a follow-up, **Agent 2** first condenses it into a standalone question using the session's chat history; then it routes to the right document using the registry, retrieves the top-4 most similar chunks, and builds a grounded prompt.
+5. **Draft** — the LLM responds using *only* the retrieved context, or emits an explicit refusal when the context doesn't contain the answer.
+6. **Agent 3** fact-checks the draft against the retrieved chunks; only supported answers are returned (with a validation verdict and source snippets) — unsupported drafts are withheld.
 
 ## ☁️ Deployment (Render)
 
@@ -208,7 +240,6 @@ The live demo runs on Render's free tier via [render.yaml](render.yaml). Because
 
 - Persist the FAISS index and registry to disk
 - OCR support for scanned PDFs
-- Conversation memory for follow-up questions
 - Streaming answers (Server-Sent Events)
 - Docker image for one-command setup
 - Retrieval quality evaluation script

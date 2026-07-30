@@ -172,6 +172,41 @@
   /* ---------- Chat panel ---------- */
   .chat { display: flex; flex-direction: column; min-height: 0; }
   .chat-card { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 20px; border-bottom: 1px solid var(--border);
+  }
+  .chat-header-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 650; color: var(--text);
+  }
+  .chat-header-title svg { width: 15px; height: 15px; color: var(--accent); }
+  .agent-count {
+    font-size: 10.5px; font-weight: 650; color: var(--accent);
+    background: var(--accent-soft); border-radius: 999px; padding: 3px 9px;
+  }
+  .new-chat-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--text-2);
+    background: var(--surface-solid); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 13px; cursor: pointer;
+    font-family: inherit; transition: all .2s ease;
+  }
+  .new-chat-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .new-chat-btn svg { width: 13px; height: 13px; }
+  .valid-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 650; letter-spacing: .02em;
+    color: #1e8e3e; background: rgba(52,199,89,.12);
+    border-radius: 999px; padding: 3px 9px; margin-left: 6px;
+    text-transform: none;
+  }
+  .valid-badge svg { width: 11px; height: 11px; }
+  .chip-num {
+    display: inline-grid; place-items: center; min-width: 15px; height: 15px;
+    font-size: 9.5px; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); border-radius: 5px; padding: 0 3px;
+  }
   .messages { flex: 1; overflow-y: auto; padding: 26px 28px; display: flex; flex-direction: column; gap: 18px; }
 
   .empty-state {
@@ -345,6 +380,15 @@
   <!-- ============ Chat ============ -->
   <section class="chat">
     <div class="card chat-card">
+      <div class="chat-header">
+        <div class="chat-header-title">
+          <i data-lucide="messages-square"></i> Conversation
+          <span class="agent-count">3 agents</span>
+        </div>
+        <button class="new-chat-btn" id="newChatBtn" type="button">
+          <i data-lucide="plus"></i> New chat
+        </button>
+      </div>
       <div class="messages" id="messages">
         <div class="empty-state" id="emptyState">
           <div class="empty-icon"><i data-lucide="message-circle-question"></i></div>
@@ -374,7 +418,9 @@
 "use strict";
 
 /* ---------------- state ---------------- */
-const state = { docs: [], selectedDocId: null, busy: false };
+const newSessionId = () =>
+  (crypto.randomUUID ? crypto.randomUUID() : "s" + Date.now() + Math.random().toString(16).slice(2));
+const state = { docs: [], selectedDocId: null, busy: false, sessionId: newSessionId() };
 
 const $ = (id) => document.getElementById(id);
 const messagesEl = $("messages");
@@ -544,30 +590,32 @@ function addWorkingMessage() {
   el.className = "msg";
   el.innerHTML = `
     <div class="bubble-ai">
-      <div class="ai-tag"><i data-lucide="bot"></i> Agent 2</div>
+      <div class="ai-tag"><i data-lucide="bot"></i> Agents working</div>
       <div class="working">
-        <div class="step doing" id="w0"><span class="ring"></span> Routing to the relevant document</div>
+        <div class="step doing" id="w0"><span class="ring"></span> Agent 2 · Routing to the relevant document</div>
         <div class="step" id="w1"><span class="ring"></span> Retrieving context from FAISS</div>
-        <div class="step" id="w2"><span class="ring"></span> Generating grounded answer <span class="dots"><i></i><i></i><i></i></span></div>
+        <div class="step" id="w2"><span class="ring"></span> Agent 2 · Generating grounded answer</div>
+        <div class="step" id="w3"><span class="ring"></span> Agent 3 · Validating against sources <span class="dots"><i></i><i></i><i></i></span></div>
       </div>
     </div>`;
   messagesEl.appendChild(el);
   icons(); scrollDown();
-  const t1 = setTimeout(() => {
-    el.querySelector("#w0").className = "step done";
-    el.querySelector("#w1").className = "step doing";
-  }, 900);
-  const t2 = setTimeout(() => {
-    el.querySelector("#w1").className = "step done";
-    el.querySelector("#w2").className = "step doing";
-  }, 1900);
-  return { el, timers: [t1, t2] };
+  const advance = (from, to) => () => {
+    el.querySelector(from).className = "step done";
+    el.querySelector(to).className = "step doing";
+  };
+  const t1 = setTimeout(advance("#w0", "#w1"), 900);
+  const t2 = setTimeout(advance("#w1", "#w2"), 1900);
+  const t3 = setTimeout(advance("#w2", "#w3"), 4200);
+  return { el, timers: [t1, t2, t3] };
 }
 
 function addAnswerMessage(data) {
   const notFound = !data.found;
-  // Compact source chips: dedupe by filename+page, show snippet on hover.
+  // Perplexity-style numbered citations: dedupe by filename+page,
+  // number them, show the snippet on hover.
   const seen = new Set();
+  let num = 0;
   const chips = (data.sources || [])
     .filter((s) => {
       const key = `${s.filename}|${s.page ?? ""}`;
@@ -575,21 +623,31 @@ function addAnswerMessage(data) {
       seen.add(key);
       return true;
     })
-    .map((s) => `
+    .map((s) => {
+      num += 1;
+      return `
       <span class="source-chip" title="${escapeHtml(s.snippet)}">
-        <i data-lucide="file-text"></i>${escapeHtml(s.filename)}${s.page ? ` · p.${s.page}` : ""}
-      </span>`)
+        <span class="chip-num">${num}</span>${escapeHtml(s.filename)}${s.page ? ` · p.${s.page}` : ""}
+      </span>`;
+    })
     .join("");
   const route = data.routed_document
     ? `<span class="route">→ ${escapeHtml(data.routed_document)}</span>`
     : "";
+  const v = data.validation || {};
+  const validBadge = v.checked && v.supported
+    ? `<span class="valid-badge"><i data-lucide="shield-check"></i>Validated${v.confidence && v.confidence !== "unknown" ? " · " + escapeHtml(v.confidence) : ""}</span>`
+    : "";
+  const headline = notFound
+    ? (v.checked === true && v.supported === false ? "Withheld by Agent 3" : "Not found in documents")
+    : "Answer";
   const el = document.createElement("div");
   el.className = "msg";
   el.innerHTML = `
     <div class="bubble-ai ${notFound ? "notfound" : ""}">
       <div class="ai-tag">
         <i data-lucide="${notFound ? "search-x" : "bot"}"></i>
-        ${notFound ? "Not found in documents" : "Agent 2"} ${route}
+        ${headline} ${route} ${validBadge}
       </div>
       <div class="answer">${renderAnswer(data.answer)}</div>
       ${chips ? `<div class="sources-row"><span class="sources-label">Sources</span>${chips}</div>` : ""}
@@ -605,7 +663,7 @@ async function ask(question) {
   addUserMessage(question);
   const working = addWorkingMessage();
   try {
-    const body = { question };
+    const body = { question, session_id: state.sessionId };
     if (state.selectedDocId) body.doc_id = state.selectedDocId;
     const res = await fetch("/ask", {
       method: "POST",
@@ -655,6 +713,13 @@ $("questionInput").addEventListener("keydown", (e) => {
 $("suggestions").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");
   if (chip) ask(chip.dataset.q);
+});
+$("newChatBtn").addEventListener("click", () => {
+  // Fresh conversation: new session id (new server-side history) and a
+  // clean message area. Uploaded documents stay indexed.
+  state.sessionId = newSessionId();
+  messagesEl.innerHTML = "";
+  toast("New conversation started", "success");
 });
 
 /* ---------------- init ---------------- */

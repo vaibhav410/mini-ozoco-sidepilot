@@ -31,6 +31,11 @@ class AskRequest(BaseModel):
         default=None,
         description="Optional: restrict the answer to one document",
     )
+    session_id: str = Field(
+        default="default",
+        description="Conversation session id; follow-up questions in the same "
+        "session use chat history for context",
+    )
 
 
 class Source(BaseModel):
@@ -39,6 +44,18 @@ class Source(BaseModel):
     filename: str = Field(description="Document the passage came from")
     page: int | None = Field(default=None, description="Page number (PDFs only)")
     snippet: str = Field(description="Excerpt of the supporting text")
+
+
+class ValidationInfo(BaseModel):
+    """Agent 3's verdict on the generated answer."""
+
+    checked: bool = Field(description="Whether validation ran for this answer")
+    supported: bool = Field(
+        default=True, description="True if the answer is grounded in the context"
+    )
+    confidence: str = Field(
+        default="unknown", description="Validator confidence: high/medium/low"
+    )
 
 
 class AskResponse(BaseModel):
@@ -53,6 +70,26 @@ class AskResponse(BaseModel):
     found: bool = Field(
         description="False when the answer is not present in the documents"
     )
+    validation: ValidationInfo = Field(
+        default_factory=lambda: ValidationInfo(checked=False),
+        description="Agent 3 grounding verdict",
+    )
+
+
+class DocumentInfo(BaseModel):
+    """One indexed document, as listed by GET /documents."""
+
+    doc_id: str
+    filename: str
+    category: str
+    summary: str
+    chunks: int
+
+
+class DocumentsResponse(BaseModel):
+    """Returned by GET /documents."""
+
+    documents: list[DocumentInfo]
 
 
 class HealthResponse(BaseModel):

@@ -12,7 +12,12 @@ from typing import Any
 from langchain_core.documents import Document
 
 from app.agents.llm import build_llm, model_used
-from app.rag.prompt import ANSWER_PROMPT, NOT_FOUND_TOKEN, ROUTING_PROMPT
+from app.rag.prompt import (
+    ANSWER_PROMPT,
+    CONDENSE_PROMPT,
+    NOT_FOUND_TOKEN,
+    ROUTING_PROMPT,
+)
 from app.utils.errors import ai_service_error_from
 from app.utils.logger import get_logger
 
@@ -25,8 +30,38 @@ class ResponseAgent:
     def __init__(self) -> None:
         # Falls back to Groq automatically when Gemini is unavailable.
         llm = build_llm(temperature=0.2)
+        self._condense_chain = CONDENSE_PROMPT | llm
         self._routing_chain = ROUTING_PROMPT | llm
         self._answer_chain = ANSWER_PROMPT | llm
+
+    def condense(self, question: str, history: str) -> str:
+        """Rewrite a follow-up question as a standalone question.
+
+        Uses the recent chat history to resolve references ("he", "that
+        document"). Called only when history exists -- first questions
+        skip this LLM call entirely.
+
+        Args:
+            question: The user's raw question.
+            history: Prompt-ready transcript of recent turns.
+
+        Returns:
+            The standalone question, or the original question if the
+            rewrite fails (condensation is an optimization, not a gate).
+        """
+        try:
+            response = self._condense_chain.invoke(
+                {"history": history, "question": question}
+            )
+        except Exception as exc:
+            logger.warning("Agent 2 condense call failed (%s); using original", exc)
+            return question
+        standalone = str(response.content).strip().strip('"')
+        if not standalone:
+            return question
+        if standalone.lower() != question.lower():
+            logger.info("AGENT 2 | follow-up condensed to: %s", standalone)
+        return standalone
 
     def route(self, question: str, registry: dict[str, dict[str, Any]]) -> str | None:
         """Pick the document most relevant to the question.

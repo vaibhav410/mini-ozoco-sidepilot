@@ -39,12 +39,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Mini OZOCO SidePilot AI System",
     description=(
-        "Document Q&A with RAG and a two-agent workflow: "
+        "Document Q&A with conversational RAG and a three-agent workflow: "
         "**Agent 1** classifies and summarizes uploaded documents; "
-        "**Agent 2** routes questions, retrieves context from FAISS, and "
-        "generates grounded Gemini answers with source references."
+        "**Agent 2** resolves follow-ups via chat history, routes questions, "
+        "retrieves context from FAISS, and generates grounded answers with "
+        "source references; **Agent 3** validates every answer against the "
+        "sources before it is returned."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 

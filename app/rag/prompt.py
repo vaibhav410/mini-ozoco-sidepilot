@@ -31,6 +31,26 @@ JSON format:
  "topics": ["<3-6 short key topics>"]}}"""
 )
 
+# --- Agent 2: Follow-up condensation ------------------------------------
+
+# Conversational RAG: a follow-up like "what about his education?" embeds
+# poorly on its own. This prompt rewrites it into a standalone question
+# using the recent chat history, and that standalone version is what gets
+# routed, embedded, and answered.
+CONDENSE_PROMPT = ChatPromptTemplate.from_template(
+    """Rewrite the user's new question as a single standalone question,
+using the conversation history to resolve references like "he", "it",
+"that document", "what about...".
+
+Conversation history:
+{history}
+
+New question: {question}
+
+Reply with ONLY the rewritten standalone question. If the question is
+already standalone, reply with it unchanged."""
+)
+
 # --- Agent 2: Routing ----------------------------------------------------
 
 ROUTING_PROMPT = ChatPromptTemplate.from_template(
@@ -70,4 +90,32 @@ Rules:
 - If the context does not contain the information needed to answer,
   reply with exactly: """
     + NOT_FOUND_TOKEN
+)
+
+# --- Agent 3: Answer validation ------------------------------------------
+
+# The validation agent double-checks Agent 2's draft before it reaches
+# the user: every claim must be supported by the retrieved context.
+VALIDATION_PROMPT = ChatPromptTemplate.from_template(
+    """You are a strict fact-checking agent. Verify whether the draft
+answer below is fully supported by the provided context.
+
+Context from the documents:
+---
+{context}
+---
+
+Question: {question}
+
+Draft answer: {answer}
+
+Respond with ONLY a valid JSON object, no markdown fences:
+{{"supported": true or false,
+ "confidence": "high" or "medium" or "low",
+ "reason": "<one short sentence>"}}
+
+Rules:
+- "supported" is true only if every factual claim in the draft answer
+  appears in the context.
+- Minor rephrasing is fine; invented facts are not."""
 )
