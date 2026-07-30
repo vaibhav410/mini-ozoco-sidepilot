@@ -69,5 +69,12 @@ def health() -> HealthResponse:
 
 @app.get("/", include_in_schema=False)
 def serve_ui() -> FileResponse:
-    """Serve the single-page web UI."""
-    return FileResponse(STATIC_DIR / "index.html")
+    """Serve the single-page web UI.
+
+    No-cache headers ensure browsers always load the latest UI after a
+    redeploy instead of showing a stale cached version.
+    """
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
