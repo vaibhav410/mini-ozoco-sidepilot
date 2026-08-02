@@ -37,6 +37,15 @@ class Settings:
     # small-RAM hosts (e.g. Render free tier) where PyTorch cannot fit.
     embeddings_backend: str = os.getenv("EMBEDDINGS_BACKEND", "local")
 
+    # --- Screen understanding (Agent 4) ---
+    # gemini-2.5-flash is multimodal, so vision reuses the chat model by
+    # default; override GEMINI_VISION_MODEL to use a dedicated one.
+    gemini_vision_model: str = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-flash")
+    max_image_size_mb: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "8"))
+    # Optional explicit path to the Tesseract binary for the OCR fallback
+    # (Windows installs it outside PATH); empty means "use PATH".
+    tesseract_cmd: str = os.getenv("TESSERACT_CMD", "")
+
     # --- RAG tuning ---
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "1000"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))

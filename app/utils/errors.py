@@ -34,6 +34,12 @@ class FileTooLargeError(AppError):
     status_code = 413
 
 
+class InvalidImageError(AppError):
+    """The uploaded screenshot is not a readable PNG/JPEG image."""
+
+    status_code = 400
+
+
 class NoDocumentsError(AppError):
     """A question was asked before any document was uploaded."""
 

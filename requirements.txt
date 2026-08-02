@@ -17,3 +17,7 @@ langchain-huggingface
 pypdf
 sentence-transformers
 faiss-cpu
+
+# --- Screen understanding (Agent 4) ---
+pillow
+pytesseract  # OCR fallback; also needs the Tesseract binary installed

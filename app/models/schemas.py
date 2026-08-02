@@ -58,6 +58,16 @@ class ValidationInfo(BaseModel):
     )
 
 
+class WorkflowStageInfo(BaseModel):
+    """Execution record of one workflow pipeline stage."""
+
+    name: str = Field(
+        description="Stage name: observe, understand, analyze, guide, automate"
+    )
+    status: str = Field(description="completed, skipped, or failed")
+    duration_ms: float = Field(description="Stage execution time in milliseconds")
+
+
 class AskResponse(BaseModel):
     """Returned by POST /ask."""
 
@@ -73,6 +83,43 @@ class AskResponse(BaseModel):
     validation: ValidationInfo = Field(
         default_factory=lambda: ValidationInfo(checked=False),
         description="Agent 3 grounding verdict",
+    )
+    workflow: list[WorkflowStageInfo] = Field(
+        default_factory=list,
+        description=(
+            "Trace of the Observe -> Understand -> Analyze -> Guide -> "
+            "Automate pipeline that produced this answer"
+        ),
+    )
+
+
+class ScreenAnalyzeResponse(BaseModel):
+    """Returned by POST /screen/analyze -- Agent 4's screen understanding."""
+
+    application: str = Field(
+        description="Application or website detected on screen"
+    )
+    activity: str = Field(
+        description="One sentence describing what the user is doing"
+    )
+    detected_text: str = Field(
+        description="The most important text visible on the screen"
+    )
+    summary: str = Field(
+        description="2-3 sentence summary of what is happening on screen"
+    )
+    user_intent: str = Field(
+        description="The user's most likely goal right now"
+    )
+    suggested_actions: list[str] = Field(
+        description="Concrete next actions the user could take"
+    )
+    analysis_method: str = Field(
+        description=(
+            "Which pipeline produced this result: 'gemini_vision' (primary), "
+            "'ocr_llm' (OCR text interpreted by the LLM), or 'ocr_only' "
+            "(raw OCR text, all AI providers unavailable)"
+        )
     )
 
 

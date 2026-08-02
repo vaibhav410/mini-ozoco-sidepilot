@@ -15,3 +15,8 @@ langchain-groq
 
 pypdf
 faiss-cpu
+
+# Screen understanding (Agent 4). pytesseract is tiny; without the
+# Tesseract binary on the host the app simply skips the OCR fallback.
+pillow
+pytesseract

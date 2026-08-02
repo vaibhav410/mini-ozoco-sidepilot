@@ -92,6 +92,63 @@ Rules:
     + NOT_FOUND_TOKEN
 )
 
+# --- Agent 4: Screen understanding (vision) ------------------------------
+
+# Sent together with the screenshot in a single multimodal Gemini call.
+# A plain string, not a ChatPromptTemplate: the image travels as its own
+# content block next to this text, so there is nothing to template.
+SCREEN_UNDERSTANDING_INSTRUCTIONS = """You are a screen understanding agent \
+inside an AI SidePilot assistant. You are shown a screenshot of the user's \
+screen.
+
+Analyze the screenshot and respond with ONLY a valid JSON object, no
+markdown fences, no extra text:
+
+{"application": "<the application or website visible, e.g. 'Gmail', 'VS Code', 'Excel'>",
+ "activity": "<one short sentence: what the user is doing on screen>",
+ "detected_text": "<the most important text visible on screen, condensed>",
+ "summary": "<2-3 sentence summary of what is happening on screen>",
+ "user_intent": "<the user's most likely goal right now>",
+ "suggested_actions": ["<3-5 short, concrete next actions the user could take>"]}
+
+Rules:
+- Describe only what is actually visible; never invent content.
+- Keep detected_text faithful to the screen (quote key lines, skip chrome
+  like menus and scrollbars).
+- suggested_actions must be actionable ("Reply to the email from X"),
+  not generic ("continue working")."""
+
+# --- Agent 4 fallback: OCR text interpretation ---------------------------
+
+# Used when the vision call fails: PyTesseract extracts the raw text and
+# this text-only prompt reconstructs the same structured understanding.
+OCR_SCREEN_PROMPT = ChatPromptTemplate.from_template(
+    """You are a screen understanding agent inside an AI SidePilot
+assistant. A screenshot of the user's screen could not be analyzed
+visually, but OCR extracted the raw on-screen text below (it may be
+noisy or out of order).
+
+OCR text:
+---
+{ocr_text}
+---
+
+Infer what the user is doing and respond with ONLY a valid JSON object,
+no markdown fences, no extra text:
+
+{{"application": "<best guess at the application or website, or 'Unknown'>",
+ "activity": "<one short sentence: what the user is doing on screen>",
+ "detected_text": "<the most important lines from the OCR text, cleaned up>",
+ "summary": "<2-3 sentence summary of what is happening on screen>",
+ "user_intent": "<the user's most likely goal right now>",
+ "suggested_actions": ["<3-5 short, concrete next actions the user could take>"]}}
+
+Rules:
+- Base everything strictly on the OCR text; never invent content.
+- If the text is too sparse to tell, say so in the summary rather than
+  guessing confidently."""
+)
+
 # --- Agent 3: Answer validation ------------------------------------------
 
 # The validation agent double-checks Agent 2's draft before it reaches

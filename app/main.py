@@ -14,6 +14,7 @@ from app.config import settings
 from app.models.schemas import HealthResponse
 from app.rag.vector_store import vector_store_manager
 from app.routes.chat import router as chat_router
+from app.routes.screen import router as screen_router
 from app.routes.upload import router as upload_router
 from app.utils.logger import get_logger
 
@@ -44,7 +45,8 @@ app = FastAPI(
         "**Agent 2** resolves follow-ups via chat history, routes questions, "
         "retrieves context from FAISS, and generates grounded answers with "
         "source references; **Agent 3** validates every answer against the "
-        "sources before it is returned."
+        "sources before it is returned; **Agent 4** understands screenshots "
+        "of the user's screen via Gemini Vision with an OCR fallback."
     ),
     version="2.0.0",
     lifespan=lifespan,
@@ -52,6 +54,7 @@ app = FastAPI(
 
 app.include_router(upload_router)
 app.include_router(chat_router)
+app.include_router(screen_router)
 
 
 @app.get(
