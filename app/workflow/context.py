@@ -48,6 +48,8 @@ class WorkflowContext:
     standalone_question: str = ""
     intent: str = "question_answering"
     intent_confidence: float = 1.0
+    recommended_workflow: str = "rag_answer"
+    intent_method: str = "default"
 
     # --- Written by Analyze ---
     routed_doc_id: str | None = None

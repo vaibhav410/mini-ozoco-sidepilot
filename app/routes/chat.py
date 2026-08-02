@@ -30,7 +30,10 @@ def ask_question(request: AskRequest) -> AskResponse:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
     try:
         return answer_question(
-            question, doc_id=request.doc_id, session_id=request.session_id
+            question,
+            doc_id=request.doc_id,
+            session_id=request.session_id,
+            screen_context=request.screen_context,
         )
     except AppError as err:
         raise HTTPException(status_code=err.status_code, detail=err.detail)

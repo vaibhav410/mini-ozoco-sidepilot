@@ -149,6 +149,36 @@ Rules:
   guessing confidently."""
 )
 
+# --- Agent 5: Intent detection -------------------------------------------
+
+INTENT_PROMPT = ChatPromptTemplate.from_template(
+    """You are an intent detection agent for an AI SidePilot assistant.
+
+Classify the user's request into exactly ONE of these intents:
+- question_answering: asking about the content of uploaded documents
+- summarization: wants a summary or overview of a document
+- screen_help: wants help with what is currently on their screen
+- automation: wants a multi-step action performed for them
+- email: wants an email, reply or message written or sent
+- export: wants content exported, downloaded or saved as a file
+- search: wants to find or locate specific information or a document
+- navigation: asking how to get somewhere or open something
+- classification: asking what kind or category of document something is
+
+Uploaded documents:
+{documents}
+
+Screen context:
+{screen}
+
+User request: {question}
+
+Respond with ONLY a valid JSON object, no markdown fences:
+{{"intent": "<one intent id from the list above>",
+ "confidence": <number between 0.0 and 1.0>,
+ "reason": "<one short sentence>"}}"""
+)
+
 # --- Agent 3: Answer validation ------------------------------------------
 
 # The validation agent double-checks Agent 2's draft before it reaches

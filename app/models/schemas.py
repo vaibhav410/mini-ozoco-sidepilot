@@ -36,6 +36,14 @@ class AskRequest(BaseModel):
         description="Conversation session id; follow-up questions in the same "
         "session use chat history for context",
     )
+    screen_context: dict | None = Field(
+        default=None,
+        description=(
+            "Optional screen analysis from POST /screen/analyze; when "
+            "attached, the answer can reference what is currently on the "
+            "user's screen (keys like application, summary, detected_text)"
+        ),
+    )
 
 
 class Source(BaseModel):
@@ -55,6 +63,39 @@ class ValidationInfo(BaseModel):
     )
     confidence: str = Field(
         default="unknown", description="Validator confidence: high/medium/low"
+    )
+
+
+class IntentInfo(BaseModel):
+    """Agent 5's verdict: what the user wants and how to fulfil it."""
+
+    intent: str = Field(
+        description=(
+            "Detected intent: question_answering, summarization, "
+            "screen_help, automation, email, export, search, navigation "
+            "or classification"
+        )
+    )
+    confidence: float = Field(description="Detector confidence, 0.0-1.0")
+    recommended_workflow: str = Field(
+        description="Workflow that should fulfil this intent"
+    )
+    method: str = Field(
+        description="How the intent was detected: heuristic, llm, or fallback"
+    )
+
+
+class IntentDetectRequest(BaseModel):
+    """Body of POST /intent/detect."""
+
+    question: str = Field(
+        min_length=1,
+        description="The user request to classify",
+        examples=["Draft an email to HR about my interview"],
+    )
+    screen_context: dict | None = Field(
+        default=None,
+        description="Optional screen analysis from POST /screen/analyze",
     )
 
 
@@ -90,6 +131,10 @@ class AskResponse(BaseModel):
             "Trace of the Observe -> Understand -> Analyze -> Guide -> "
             "Automate pipeline that produced this answer"
         ),
+    )
+    intent: IntentInfo | None = Field(
+        default=None,
+        description="Agent 5's intent verdict for this request",
     )
 
 

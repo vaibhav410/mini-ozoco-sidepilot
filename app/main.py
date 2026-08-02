@@ -14,6 +14,7 @@ from app.config import settings
 from app.models.schemas import HealthResponse
 from app.rag.vector_store import vector_store_manager
 from app.routes.chat import router as chat_router
+from app.routes.intent import router as intent_router
 from app.routes.screen import router as screen_router
 from app.routes.upload import router as upload_router
 from app.utils.logger import get_logger
@@ -55,6 +56,7 @@ app = FastAPI(
 app.include_router(upload_router)
 app.include_router(chat_router)
 app.include_router(screen_router)
+app.include_router(intent_router)
 
 
 @app.get(

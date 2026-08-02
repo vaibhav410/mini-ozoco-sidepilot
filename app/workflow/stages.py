@@ -20,6 +20,9 @@ trace -- see the engine's status convention.
 
 from typing import Callable
 
+from langchain_core.documents import Document
+
+from app.agents.intent_agent import IntentResult, get_intent_agent
 from app.agents.response_agent import get_response_agent
 from app.agents.validation_agent import get_validation_agent
 from app.models.schemas import AskResponse, Source, ValidationInfo
@@ -46,9 +49,25 @@ SNIPPET_LENGTH = 240
 # later module; every other intent skips automation entirely).
 AUTOMATION_INTENTS = {"automation", "email", "export"}
 
-# Signature for a pluggable intent detector (Module 2 injects Agent 5
-# here; until then a trivial default keeps behavior identical).
-IntentDetector = Callable[[WorkflowContext], tuple[str, float]]
+AUTOMATION_PENDING_MESSAGE = (
+    "I recognized this as an automation request (intent: {intent}, "
+    "workflow: {workflow}). The automation agent that executes email "
+    "drafts and exports arrives in the next module -- your request was "
+    "detected and routed correctly."
+)
+
+# Signature for a pluggable intent detector. The default is Agent 5;
+# tests can inject a stub through UnderstandStage's constructor.
+IntentDetector = Callable[[WorkflowContext], IntentResult]
+
+
+def _agent5_intent(context: WorkflowContext) -> IntentResult:
+    """Default detector: Agent 5 over the live registry + screen context."""
+    return get_intent_agent().detect(
+        context.standalone_question,
+        vector_store_manager.registry,
+        context.screen_context,
+    )
 
 
 class ObserveStage:
@@ -58,7 +77,9 @@ class ObserveStage:
 
     def run(self, context: WorkflowContext) -> str:
         registry = vector_store_manager.registry
-        if not registry:
+        # Screen-only mode: with screen context attached, the assistant
+        # can help even before any document is uploaded.
+        if not registry and context.screen_context is None:
             raise NoDocumentsError(
                 "No documents uploaded yet. Upload a PDF or TXT file first."
             )
@@ -86,8 +107,9 @@ class UnderstandStage:
     name = "understand"
 
     def __init__(self, intent_detector: IntentDetector | None = None) -> None:
-        # Dependency injection point: Module 2 plugs Agent 5 in here.
-        self._detect_intent = intent_detector or _default_intent
+        # Dependency injection point: Agent 5 by default, any callable
+        # with the IntentDetector signature for tests/extensions.
+        self._detect_intent = intent_detector or _agent5_intent
 
     def run(self, context: WorkflowContext) -> str:
         history = context.observations.get("history_text", "")
@@ -97,8 +119,15 @@ class UnderstandStage:
             if history
             else context.question
         )
-        context.intent, context.intent_confidence = self._detect_intent(context)
-        return f"intent={context.intent} ({context.intent_confidence:.2f})"
+        result = self._detect_intent(context)
+        context.intent = result.intent
+        context.intent_confidence = result.confidence
+        context.recommended_workflow = result.recommended_workflow
+        context.intent_method = result.method
+        return (
+            f"intent={result.intent} ({result.confidence:.2f}, "
+            f"{result.method}) -> {result.recommended_workflow}"
+        )
 
 
 class AnalyzeStage:
@@ -108,19 +137,31 @@ class AnalyzeStage:
 
     def run(self, context: WorkflowContext) -> str:
         registry = vector_store_manager.registry
-        context.routed_doc_id = context.doc_id or get_response_agent().route(
-            context.standalone_question, registry
-        )
-        context.chunks = retrieve_chunks(
-            context.standalone_question, doc_id=context.routed_doc_id
-        )
+        if registry:
+            context.routed_doc_id = context.doc_id or get_response_agent().route(
+                context.standalone_question, registry
+            )
+            context.chunks = retrieve_chunks(
+                context.standalone_question, doc_id=context.routed_doc_id
+            )
+            note = (
+                f"routed={context.routed_doc_id or 'all documents'}, "
+                f"chunks={len(context.chunks)}"
+            )
+        else:
+            note = "no documents (screen-only mode)"
+
+        # Screen context becomes one extra grounding chunk, so answers
+        # can reference what the user is currently looking at and the
+        # validator can check claims against it like any other source.
+        if context.screen_context is not None:
+            context.chunks = [*context.chunks, _screen_chunk(context.screen_context)]
+            note += ", +screen context"
+
         if not context.chunks:
             context.response = _not_found(context, NOT_FOUND_MESSAGE)
             return "no relevant context found"
-        return (
-            f"routed={context.routed_doc_id or 'all documents'}, "
-            f"chunks={len(context.chunks)}"
-        )
+        return note
 
 
 class GuideStage:
@@ -131,6 +172,10 @@ class GuideStage:
     def run(self, context: WorkflowContext) -> str:
         if context.response is not None:
             return "skipped (already resolved by an earlier stage)"
+        if context.intent in AUTOMATION_INTENTS:
+            # Automation requests are fulfilled by the Automate stage
+            # (Agent 6), not by a RAG answer.
+            return "skipped (automation intent -- deferred to Automate)"
 
         raw_answer = get_response_agent().answer(
             context.standalone_question, context.chunks
@@ -191,7 +236,23 @@ class AutomateStage:
     def run(self, context: WorkflowContext) -> str:
         if context.intent not in AUTOMATION_INTENTS:
             return f"skipped (intent '{context.intent}' needs no automation)"
-        return "skipped (automation agent not installed yet)"
+
+        if context.response is None:
+            # Placeholder until Agent 6 lands: acknowledge the detected
+            # automation request instead of returning a misleading
+            # "not found" from the RAG path.
+            message = AUTOMATION_PENDING_MESSAGE.format(
+                intent=context.intent, workflow=context.recommended_workflow
+            )
+            chat_history.add(context.session_id, context.question, message)
+            context.response = AskResponse(
+                answer=message,
+                routed_document=_routed_filename(context),
+                sources=[],
+                found=True,
+                validation=ValidationInfo(checked=False),
+            )
+        return "automation intent recognized (Agent 6 pending)"
 
 
 def build_default_stages() -> list:
@@ -205,9 +266,18 @@ def build_default_stages() -> list:
     ]
 
 
-def _default_intent(context: WorkflowContext) -> tuple[str, float]:
-    """Trivial detector: everything is Q&A until Agent 5 lands."""
-    return "question_answering", 1.0
+def _screen_chunk(screen_context: dict) -> Document:
+    """Turn Agent 4's screen analysis into a retrievable grounding chunk."""
+    content = "\n".join(
+        part
+        for part in (
+            f"Application on screen: {screen_context.get('application', 'Unknown')}",
+            f"What is happening: {screen_context.get('summary', '')}",
+            f"On-screen text: {screen_context.get('detected_text', '')}",
+        )
+        if part.split(": ", 1)[-1].strip()
+    )
+    return Document(page_content=content, metadata={"filename": "Current screen"})
 
 
 def _routed_filename(context: WorkflowContext) -> str | None:

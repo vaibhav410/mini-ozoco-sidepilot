@@ -14,7 +14,7 @@ This module stays as the stable entry point for the routes.
 
 from typing import Any
 
-from app.models.schemas import AskResponse, WorkflowStageInfo
+from app.models.schemas import AskResponse, IntentInfo, WorkflowStageInfo
 from app.utils.logger import get_logger
 from app.workflow import WorkflowContext, get_workflow_engine
 
@@ -64,4 +64,10 @@ def answer_question(
         )
         for trace in context.trace
     ]
+    context.response.intent = IntentInfo(
+        intent=context.intent,
+        confidence=round(context.intent_confidence, 2),
+        recommended_workflow=context.recommended_workflow,
+        method=context.intent_method,
+    )
     return context.response
