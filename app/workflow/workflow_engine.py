@@ -17,7 +17,7 @@ as completed. A raised exception records it as failed and propagates
 
 from functools import lru_cache
 from time import perf_counter
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Callable, Protocol, Sequence, runtime_checkable
 
 from app.utils.logger import get_logger
 from app.workflow.context import StageTrace, WorkflowContext
@@ -62,11 +62,18 @@ class WorkflowEngine:
         """Ordered names of the configured stages (for docs/monitoring)."""
         return [stage.name for stage in self._stages]
 
-    def run(self, context: WorkflowContext) -> WorkflowContext:
+    def run(
+        self,
+        context: WorkflowContext,
+        on_stage: Callable[[StageTrace], None] | None = None,
+    ) -> WorkflowContext:
         """Execute all stages in order, recording a trace entry for each.
 
         Args:
             context: The request's workflow context (mutated in place).
+            on_stage: Optional callback fired with each StageTrace as
+                soon as its stage finishes -- used by the streaming API
+                to push live pipeline progress to the client.
 
         Returns:
             The same context, with ``trace`` filled and stage outputs set.
@@ -88,14 +95,14 @@ class WorkflowEngine:
                 note = stage.run(context) or ""
             except Exception as exc:
                 duration_ms = (perf_counter() - stage_start) * 1000
-                context.trace.append(
-                    StageTrace(
-                        name=stage.name,
-                        status="failed",
-                        duration_ms=duration_ms,
-                        note=str(exc)[:120],
-                    )
+                failed = StageTrace(
+                    name=stage.name,
+                    status="failed",
+                    duration_ms=duration_ms,
+                    note=str(exc)[:120],
                 )
+                context.trace.append(failed)
+                _notify(on_stage, failed)
                 logger.error(
                     "WORKFLOW | stage=%-10s FAILED after %4.0f ms | %s",
                     stage.name,
@@ -106,14 +113,14 @@ class WorkflowEngine:
 
             duration_ms = (perf_counter() - stage_start) * 1000
             status = "skipped" if note.startswith(SKIPPED_PREFIX) else "completed"
-            context.trace.append(
-                StageTrace(
-                    name=stage.name,
-                    status=status,
-                    duration_ms=duration_ms,
-                    note=note,
-                )
+            entry = StageTrace(
+                name=stage.name,
+                status=status,
+                duration_ms=duration_ms,
+                note=note,
             )
+            context.trace.append(entry)
+            _notify(on_stage, entry)
             logger.info(
                 "WORKFLOW | stage=%-10s %-9s %5.0f ms | %s",
                 stage.name,
@@ -125,6 +132,18 @@ class WorkflowEngine:
         total_ms = (perf_counter() - pipeline_start) * 1000
         logger.info("WORKFLOW | done in %.0f ms", total_ms)
         return context
+
+
+def _notify(
+    on_stage: Callable[[StageTrace], None] | None, entry: StageTrace
+) -> None:
+    """Fire the stage callback; a listener bug must never break the run."""
+    if on_stage is None:
+        return
+    try:
+        on_stage(entry)
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("on_stage callback failed")
 
 
 @lru_cache(maxsize=1)

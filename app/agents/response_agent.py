@@ -117,14 +117,9 @@ class ResponseAgent:
         Raises:
             AIServiceError: If the Gemini call fails.
         """
-        context = "\n\n---\n\n".join(
-            f"[Source: {chunk.metadata.get('filename', 'unknown')}"
-            f"{self._page_ref(chunk)}]\n{chunk.page_content}"
-            for chunk in chunks
-        )
         try:
             response = self._answer_chain.invoke(
-                {"context": context, "question": question}
+                {"context": self._format_context(chunks), "question": question}
             )
         except Exception as exc:
             logger.error("Agent 2 Gemini call failed: %s", exc)
@@ -139,6 +134,50 @@ class ResponseAgent:
             model_used(response),
         )
         return answer_text
+
+    def answer_stream(self, question, chunks: list[Document], on_token) -> str:
+        """Generate a grounded answer, emitting tokens as they arrive.
+
+        Args:
+            question: The user's question.
+            chunks: Top-k chunks returned by the retriever.
+            on_token: Callable fired with each generated text fragment.
+
+        Returns:
+            The complete answer text (same contract as :meth:`answer`).
+
+        Raises:
+            AIServiceError: If the streaming call fails.
+        """
+        parts: list[str] = []
+        try:
+            for piece in self._answer_chain.stream(
+                {"context": self._format_context(chunks), "question": question}
+            ):
+                text = str(piece.content)
+                if text:
+                    parts.append(text)
+                    on_token(text)
+        except Exception as exc:
+            logger.error("Agent 2 streaming call failed: %s", exc)
+            raise ai_service_error_from(exc) from exc
+
+        answer_text = "".join(parts).strip()
+        logger.info(
+            "AGENT 2 | streamed answer (%d chars, %d context chunks)",
+            len(answer_text),
+            len(chunks),
+        )
+        return answer_text
+
+    @classmethod
+    def _format_context(cls, chunks: list[Document]) -> str:
+        """Render retrieved chunks as the prompt's context block."""
+        return "\n\n---\n\n".join(
+            f"[Source: {chunk.metadata.get('filename', 'unknown')}"
+            f"{cls._page_ref(chunk)}]\n{chunk.page_content}"
+            for chunk in chunks
+        )
 
     @staticmethod
     def _page_ref(chunk: Document) -> str:

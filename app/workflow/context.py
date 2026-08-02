@@ -8,7 +8,7 @@ change.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from langchain_core.documents import Document
 
@@ -40,6 +40,11 @@ class WorkflowContext:
     # Optional Agent 4 output (application, summary, user_intent, ...)
     # attached when the question is about what's on the user's screen.
     screen_context: dict[str, Any] | None = None
+    # Streaming hook: when set, the Guide stage emits answer tokens
+    # through it as they are generated (see chat_service.stream_events).
+    token_callback: Callable[[str], None] | None = field(
+        default=None, repr=False
+    )
 
     # --- Written by Observe ---
     observations: dict[str, Any] = field(default_factory=dict)

@@ -175,9 +175,13 @@ class GuideStage:
             # (Agent 6), not by a RAG answer.
             return "skipped (automation intent -- deferred to Automate)"
 
-        raw_answer = get_response_agent().answer(
-            context.standalone_question, context.chunks
-        )
+        agent2 = get_response_agent()
+        if context.token_callback is not None:
+            raw_answer = agent2.answer_stream(
+                context.standalone_question, context.chunks, context.token_callback
+            )
+        else:
+            raw_answer = agent2.answer(context.standalone_question, context.chunks)
         if NOT_FOUND_TOKEN in raw_answer:
             context.response = _not_found(context, NOT_FOUND_MESSAGE)
             return "answer not present in the documents"

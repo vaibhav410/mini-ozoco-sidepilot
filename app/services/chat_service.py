@@ -1,24 +1,31 @@
 """Question-answering orchestration -- delegated to the workflow engine.
 
-Every question now travels the SidePilot pipeline:
+Every question travels the SidePilot pipeline:
 
     Observe -> Understand -> Analyze -> Guide -> Automate
 
-The stage implementations (app/workflow/stages.py) run the same
-three-agent logic as before -- condense, route, retrieve, answer,
-validate -- so behavior and the /ask response contract are unchanged;
-the pipeline just adds per-stage tracing on top.
+Two entry points, one pipeline:
 
-This module stays as the stable entry point for the routes.
+- ``answer_question``: blocking; returns the complete AskResponse.
+- ``stream_events``:   generator of live events (stage progress,
+  answer tokens, final response) consumed by the SSE route.
+
+This module stays the stable boundary between routes and the workflow.
 """
 
-from typing import Any
+import queue
+import threading
+from typing import Any, Iterator
 
 from app.models.schemas import AskResponse, IntentInfo, WorkflowStageInfo
+from app.rag.prompt import NOT_FOUND_TOKEN
+from app.utils.errors import AppError
 from app.utils.logger import get_logger
-from app.workflow import WorkflowContext, get_workflow_engine
+from app.workflow import StageTrace, WorkflowContext, get_workflow_engine
 
 logger = get_logger(__name__)
+
+_SENTINEL = object()
 
 
 def answer_question(
@@ -38,7 +45,7 @@ def answer_question(
 
     Returns:
         AskResponse with answer, routing, sources, validation verdict,
-        the ``found`` flag, and the executed workflow trace.
+        the ``found`` flag, intent, and the executed workflow trace.
 
     Raises:
         NoDocumentsError: Nothing has been uploaded yet.
@@ -52,8 +59,78 @@ def answer_question(
         screen_context=screen_context,
     )
     get_workflow_engine().run(context)
+    return _finalize(context)
 
-    if context.response is None:  # defensive: Guide always sets it
+
+def stream_events(
+    question: str,
+    doc_id: str | None = None,
+    session_id: str = "default",
+    screen_context: dict[str, Any] | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Run the pipeline while yielding live events for the SSE route.
+
+    Event shapes (``{"event": ..., "data": ...}``):
+
+    - ``stage``: one pipeline stage finished (name, status, duration_ms)
+    - ``token``: next fragment of the generated answer
+    - ``final``: the complete AskResponse (same JSON as POST /ask)
+    - ``error``: a failure (detail, status)
+
+    The pipeline runs in a worker thread; this generator drains a queue,
+    so tokens reach the client the moment the model produces them.
+    """
+    events: queue.Queue = queue.Queue()
+
+    def emit(event: str, data: Any) -> None:
+        events.put({"event": event, "data": data})
+
+    gate = _TokenGate(lambda token: emit("token", {"text": token}))
+
+    def on_stage(trace: StageTrace) -> None:
+        emit(
+            "stage",
+            {
+                "name": trace.name,
+                "status": trace.status,
+                "duration_ms": round(trace.duration_ms, 1),
+                "note": trace.note,
+            },
+        )
+
+    context = WorkflowContext(
+        question=question,
+        doc_id=doc_id,
+        session_id=session_id,
+        screen_context=screen_context,
+        token_callback=gate.push,
+    )
+
+    def work() -> None:
+        try:
+            get_workflow_engine().run(context, on_stage=on_stage)
+            gate.flush()
+            emit("final", _finalize(context).model_dump())
+        except AppError as err:
+            emit("error", {"detail": err.detail, "status": err.status_code})
+        except Exception:
+            logger.exception("Unexpected error in streaming pipeline")
+            emit("error", {"detail": "Unexpected server error.", "status": 500})
+        finally:
+            events.put(_SENTINEL)
+
+    threading.Thread(target=work, daemon=True).start()
+
+    while True:
+        item = events.get()
+        if item is _SENTINEL:
+            break
+        yield item
+
+
+def _finalize(context: WorkflowContext) -> AskResponse:
+    """Attach the trace and intent verdict to the pipeline's response."""
+    if context.response is None:  # defensive: Guide/Automate always set it
         raise RuntimeError("Workflow finished without producing a response")
 
     context.response.workflow = [
@@ -71,3 +148,41 @@ def answer_question(
         method=context.intent_method,
     )
     return context.response
+
+
+class _TokenGate:
+    """Holds back the first tokens so the NOT_FOUND sentinel never
+    reaches the client as visible text.
+
+    The gate buffers until it has seen enough characters to rule out
+    the sentinel prefix, then flushes and passes everything through.
+    If the sentinel is detected, all tokens are suppressed -- the
+    ``final`` event carries the proper "not found" answer instead.
+    """
+
+    def __init__(self, emit) -> None:
+        self._emit = emit
+        self._buffer = ""
+        self._decided = False
+        self._suppress = False
+
+    def push(self, token: str) -> None:
+        """Receive one token from the model."""
+        if self._decided:
+            if not self._suppress:
+                self._emit(token)
+            return
+        self._buffer += token
+        if len(self._buffer.lstrip()) >= len(NOT_FOUND_TOKEN):
+            self._decide()
+
+    def flush(self) -> None:
+        """Called when generation ends; emits any undecided buffer."""
+        if not self._decided:
+            self._decide()
+
+    def _decide(self) -> None:
+        self._decided = True
+        self._suppress = self._buffer.lstrip().startswith(NOT_FOUND_TOKEN)
+        if not self._suppress and self._buffer:
+            self._emit(self._buffer)
