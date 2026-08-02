@@ -1,0 +1,63 @@
+"""Workflow context -- the single state object that flows through the
+pipeline.
+
+Stages communicate only through this context (never with each other),
+which is what makes every stage independently replaceable: as long as a
+stage reads and writes the agreed fields, its internals are free to
+change.
+"""
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from langchain_core.documents import Document
+
+from app.models.schemas import AskResponse
+
+
+@dataclass
+class StageTrace:
+    """Execution record of one pipeline stage (for logs, API and UI)."""
+
+    name: str
+    status: str  # "completed" | "skipped" | "failed"
+    duration_ms: float
+    note: str = ""
+
+
+@dataclass
+class WorkflowContext:
+    """Mutable state shared by every stage of one workflow run.
+
+    The first block is the caller's input; everything below it is
+    written by the stages as the request advances through the pipeline.
+    """
+
+    # --- Inputs (set by the caller) ---
+    question: str
+    session_id: str = "default"
+    doc_id: str | None = None
+    # Optional Agent 4 output (application, summary, user_intent, ...)
+    # attached when the question is about what's on the user's screen.
+    screen_context: dict[str, Any] | None = None
+
+    # --- Written by Observe ---
+    observations: dict[str, Any] = field(default_factory=dict)
+
+    # --- Written by Understand ---
+    standalone_question: str = ""
+    intent: str = "question_answering"
+    intent_confidence: float = 1.0
+
+    # --- Written by Analyze ---
+    routed_doc_id: str | None = None
+    chunks: list[Document] = field(default_factory=list)
+
+    # --- Written by Guide ---
+    response: AskResponse | None = None
+
+    # --- Written by Automate ---
+    automation_result: dict[str, Any] | None = None
+
+    # --- Written by the engine ---
+    trace: list[StageTrace] = field(default_factory=list)
