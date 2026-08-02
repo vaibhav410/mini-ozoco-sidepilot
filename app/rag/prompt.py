@@ -179,6 +179,58 @@ Respond with ONLY a valid JSON object, no markdown fences:
  "reason": "<one short sentence>"}}"""
 )
 
+# --- Agent 6: Automation -------------------------------------------------
+
+EMAIL_DRAFT_PROMPT = ChatPromptTemplate.from_template(
+    """You are an email drafting agent inside an AI SidePilot assistant.
+Write a professional email that fulfils the user's request, grounded in
+the context below when relevant.
+
+Context (documents / screen):
+---
+{context}
+---
+
+User request: {question}
+
+Respond with ONLY a valid JSON object, no markdown fences:
+{{"to": "<recipient address if identifiable, else empty string>",
+ "subject": "<concise subject line>",
+ "body": "<the full email body, plain text, professional tone>"}}"""
+)
+
+EXPORT_SUMMARY_PROMPT = ChatPromptTemplate.from_template(
+    """You are a summary export agent. Write a clean, well-structured
+Markdown summary of the content below, suitable for saving as a report.
+
+Use headings, short paragraphs and bullet points. Do not invent facts.
+
+Content:
+---
+{context}
+---
+
+User request: {question}
+
+Reply with ONLY the Markdown document, starting with a # title line."""
+)
+
+ACTION_PLAN_PROMPT = ChatPromptTemplate.from_template(
+    """You are a planning agent. Create a concrete, step-by-step action
+plan that fulfils the user's request, grounded in the context when
+relevant.
+
+Context (documents / screen):
+---
+{context}
+---
+
+User request: {question}
+
+Reply with ONLY a Markdown document: a # title line, then numbered
+steps, each with one short explanation line."""
+)
+
 # --- Agent 3: Answer validation ------------------------------------------
 
 # The validation agent double-checks Agent 2's draft before it reaches

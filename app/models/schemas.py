@@ -66,6 +66,39 @@ class ValidationInfo(BaseModel):
     )
 
 
+class AutomationInfo(BaseModel):
+    """Agent 6's execution record for an automation request."""
+
+    action: str = Field(
+        description="Executed action: email_draft, export_summary, action_plan"
+    )
+    status: str = Field(description="completed or failed")
+    file: str | None = Field(
+        default=None, description="Generated file in the exports directory"
+    )
+    download_url: str | None = Field(
+        default=None, description="Relative URL to download the generated file"
+    )
+    extra: dict = Field(
+        default_factory=dict,
+        description="Action-specific details (e.g. mailto link, subject)",
+    )
+
+
+class ExportFileInfo(BaseModel):
+    """One generated file, as listed by GET /exports."""
+
+    filename: str
+    size_bytes: int
+    modified: str
+
+
+class ExportsResponse(BaseModel):
+    """Returned by GET /exports."""
+
+    files: list[ExportFileInfo]
+
+
 class IntentInfo(BaseModel):
     """Agent 5's verdict: what the user wants and how to fulfil it."""
 
@@ -135,6 +168,10 @@ class AskResponse(BaseModel):
     intent: IntentInfo | None = Field(
         default=None,
         description="Agent 5's intent verdict for this request",
+    )
+    automation: AutomationInfo | None = Field(
+        default=None,
+        description="Agent 6's execution record, present for automation intents",
     )
 
 

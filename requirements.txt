@@ -21,3 +21,6 @@ faiss-cpu
 # --- Screen understanding (Agent 4) ---
 pillow
 pytesseract  # OCR fallback; also needs the Tesseract binary installed
+
+# --- Automation & integrations (Agent 6) ---
+fpdf2

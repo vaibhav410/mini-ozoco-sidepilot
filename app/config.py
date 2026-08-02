@@ -57,6 +57,14 @@ class Settings:
     )
     max_file_size_mb: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
 
+    # --- Automation & integrations (Agent 6) ---
+    exports_dir: Path = field(
+        default_factory=lambda: BASE_DIR / os.getenv("EXPORTS_DIR", "exports")
+    )
+    # Optional Gmail OAuth token JSON for real API drafts; empty means
+    # drafts are generated as downloadable .eml files instead.
+    gmail_token_json: str = os.getenv("GMAIL_TOKEN_JSON", "")
+
     def validate(self) -> None:
         """Fail fast at startup if a required setting is missing.
 
@@ -69,6 +77,7 @@ class Settings:
                 "and add your Gemini API key."
             )
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.exports_dir.mkdir(parents=True, exist_ok=True)
 
 
 # Single shared instance imported by the rest of the application.

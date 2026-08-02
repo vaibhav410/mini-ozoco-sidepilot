@@ -25,7 +25,12 @@ from langchain_core.documents import Document
 from app.agents.intent_agent import IntentResult, get_intent_agent
 from app.agents.response_agent import get_response_agent
 from app.agents.validation_agent import get_validation_agent
-from app.models.schemas import AskResponse, Source, ValidationInfo
+from app.models.schemas import (
+    AskResponse,
+    AutomationInfo,
+    Source,
+    ValidationInfo,
+)
 from app.rag.prompt import NOT_FOUND_TOKEN
 from app.rag.retriever import retrieve_chunks
 from app.rag.vector_store import vector_store_manager
@@ -48,13 +53,6 @@ SNIPPET_LENGTH = 240
 # Intents that trigger the Automate stage (fulfilled by Agent 6 in a
 # later module; every other intent skips automation entirely).
 AUTOMATION_INTENTS = {"automation", "email", "export"}
-
-AUTOMATION_PENDING_MESSAGE = (
-    "I recognized this as an automation request (intent: {intent}, "
-    "workflow: {workflow}). The automation agent that executes email "
-    "drafts and exports arrives in the next module -- your request was "
-    "detected and routed correctly."
-)
 
 # Signature for a pluggable intent detector. The default is Agent 5;
 # tests can inject a stub through UnderstandStage's constructor.
@@ -224,12 +222,7 @@ class GuideStage:
 
 
 class AutomateStage:
-    """Execute follow-up actions for automation intents.
-
-    Handler slot for the automation agent (Agent 6, next modules).
-    Until it lands, non-automation intents skip cleanly and automation
-    intents record that no handler is installed yet.
-    """
+    """Execute follow-up actions for automation intents via Agent 6."""
 
     name = "automate"
 
@@ -237,22 +230,30 @@ class AutomateStage:
         if context.intent not in AUTOMATION_INTENTS:
             return f"skipped (intent '{context.intent}' needs no automation)"
 
-        if context.response is None:
-            # Placeholder until Agent 6 lands: acknowledge the detected
-            # automation request instead of returning a misleading
-            # "not found" from the RAG path.
-            message = AUTOMATION_PENDING_MESSAGE.format(
-                intent=context.intent, workflow=context.recommended_workflow
-            )
-            chat_history.add(context.session_id, context.question, message)
-            context.response = AskResponse(
-                answer=message,
-                routed_document=_routed_filename(context),
-                sources=[],
-                found=True,
-                validation=ValidationInfo(checked=False),
-            )
-        return "automation intent recognized (Agent 6 pending)"
+        # Imported lazily so the Q&A path never pays for automation deps.
+        from dataclasses import asdict
+
+        from app.agents.automation_agent import get_automation_agent
+
+        outcome = get_automation_agent().execute(context)
+        context.automation_result = asdict(outcome)
+
+        chat_history.add(context.session_id, context.question, outcome.detail)
+        context.response = AskResponse(
+            answer=outcome.detail,
+            routed_document=_routed_filename(context),
+            sources=[],
+            found=outcome.status == "completed",
+            validation=ValidationInfo(checked=False),
+            automation=AutomationInfo(
+                action=outcome.action,
+                status=outcome.status,
+                file=outcome.file,
+                download_url=outcome.download_url,
+                extra=outcome.extra,
+            ),
+        )
+        return f"{outcome.action}: {outcome.status}"
 
 
 def build_default_stages() -> list:

@@ -11,6 +11,9 @@ venv/
 uploads/*
 !uploads/.gitkeep
 
+# Generated automation artifacts (email drafts, exports)
+exports/
+
 # IDE
 .vscode/
 .idea/

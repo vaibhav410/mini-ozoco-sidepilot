@@ -20,3 +20,6 @@ faiss-cpu
 # Tesseract binary on the host the app simply skips the OCR fallback.
 pillow
 pytesseract
+
+# Automation & integrations (Agent 6)
+fpdf2
