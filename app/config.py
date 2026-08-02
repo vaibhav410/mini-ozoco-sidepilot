@@ -41,6 +41,12 @@ class Settings:
     # gemini-2.5-flash is multimodal, so vision reuses the chat model by
     # default; override GEMINI_VISION_MODEL to use a dedicated one.
     gemini_vision_model: str = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-flash")
+    # Secondary vision model tried when the primary fails. Free-tier
+    # quotas are PER MODEL, so flash-lite usually still has quota left
+    # when flash is exhausted -- and Groq can't do vision at all.
+    gemini_vision_fallback_model: str = os.getenv(
+        "GEMINI_VISION_FALLBACK_MODEL", "gemini-2.5-flash-lite"
+    )
     max_image_size_mb: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "8"))
     # Optional explicit path to the Tesseract binary for the OCR fallback
     # (Windows installs it outside PATH); empty means "use PATH".

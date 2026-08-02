@@ -750,6 +750,11 @@ async function ask(question) {
     return;
   }
   if (finalData) renderFinal(shell, finalData);
+  else if (answerText) {
+    // Connection dropped before the final event: keep what streamed,
+    // just remove the blinking cursor.
+    shell.answerEl.innerHTML = md(answerText);
+  }
   scrollDown();
 }
 
@@ -778,9 +783,11 @@ function renderFinal(shell, r) {
 
   /* Automation card with downloads */
   if (r.automation && r.automation.status === "completed") {
+    const x = r.automation.extra || {};
     let actions = "";
     if (r.automation.download_url) actions += '<a class="auto-btn" href="' + esc(r.automation.download_url) + '" download>⬇ Download ' + esc(r.automation.file || "file") + "</a>";
-    if (r.automation.extra && r.automation.extra.mailto) actions += '<a class="auto-btn ghost" href="' + esc(r.automation.extra.mailto) + '">✉ Open in mail app</a>';
+    if (x.body) actions += '<button class="auto-btn ghost" data-copy="1">📋 Copy draft</button>';
+    if (x.mailto) actions += '<a class="auto-btn ghost" href="' + esc(x.mailto) + '">✉ Open in mail app</a>';
     extras += '<div class="auto-card"><div class="auto-head">⚡ Automation · ' + esc(r.automation.action) + '</div><div class="auto-actions">' + actions + "</div></div>";
   }
 
@@ -798,6 +805,21 @@ function renderFinal(shell, r) {
   }
   shell.extrasEl.innerHTML = extras;
   shell.root.dataset.answer = r.answer;
+
+  /* Copy-draft: clipboard always works, unlike mailto on machines
+     without a default mail app. */
+  const copyBtn = shell.extrasEl.querySelector('[data-copy]');
+  if (copyBtn && r.automation && r.automation.extra) {
+    const x = r.automation.extra;
+    copyBtn.onclick = async () => {
+      const text = (x.to ? "To: " + x.to + "\n" : "") +
+        "Subject: " + (x.subject || "") + "\n\n" + (x.body || "");
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("Email draft copied — paste it into Gmail");
+      } catch (e) { toast("Copy failed — download the .eml instead", true); }
+    };
+  }
   if (state.tts) speakText(r.answer);
 }
 

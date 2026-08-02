@@ -95,6 +95,7 @@ class EmailDraftHandler:
             extra={
                 "to": to,
                 "subject": subject,
+                "body": body,
                 "mailto": result["mailto"],
                 "backend": result["backend"],
             },

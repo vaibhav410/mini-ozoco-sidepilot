@@ -31,7 +31,13 @@ def create_draft(to: str, subject: str, body: str) -> dict:
         (generated .eml filename, if any), and ``mailto`` (pre-filled
         mailto link).
     """
-    mailto = f"mailto:{quote(to)}?subject={quote(subject)}&body={quote(body)}"
+    # mailto links longer than ~2000 chars are silently dropped by
+    # Windows/browsers, so the body is capped -- the .eml file and the
+    # UI's copy button carry the full text.
+    mailto = (
+        f"mailto:{quote(to)}?subject={quote(subject[:150])}"
+        f"&body={quote(body[:1200])}"
+    )
 
     if settings.gmail_token_json:
         result = _create_gmail_api_draft(to, subject, body)

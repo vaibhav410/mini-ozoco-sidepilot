@@ -42,15 +42,22 @@ class ScreenAgent:
     """Understands screenshots via Gemini Vision, with an OCR text path."""
 
     def __init__(self) -> None:
-        # Vision must run on Gemini directly (no .with_fallbacks): the
-        # configured Groq model cannot accept images, so a failed vision
-        # call falls back to OCR in the service layer instead.
-        self._vision_llm = ChatGoogleGenerativeAI(
-            model=settings.gemini_vision_model,
-            google_api_key=settings.google_api_key,
-            temperature=0.2,
-            max_retries=1,  # fail fast so the OCR fallback engages quickly
-        )
+        # Vision must run on Gemini (the Groq model is text-only), but
+        # free-tier quotas are per model -- so a second Gemini vision
+        # model is tried before falling back to OCR. Ladder:
+        # primary vision -> fallback vision -> OCR (service layer).
+        self._vision_llms = [
+            ChatGoogleGenerativeAI(
+                model=model,
+                google_api_key=settings.google_api_key,
+                temperature=0.2,
+                max_retries=1,  # fail fast so the next rung engages quickly
+            )
+            for model in dict.fromkeys(  # dedupe, keep order
+                [settings.gemini_vision_model, settings.gemini_vision_fallback_model]
+            )
+            if model
+        ]
         # Text-only interpretation of OCR output reuses the shared
         # factory and inherits the Gemini -> Groq fallback.
         self._ocr_chain = OCR_SCREEN_PROMPT | build_llm(temperature=0.2)
@@ -80,11 +87,20 @@ class ScreenAgent:
                 },
             ]
         )
-        try:
-            response = self._vision_llm.invoke([message])
-        except Exception as exc:
-            logger.error("Agent 4 vision call failed: %s", exc)
-            raise ai_service_error_from(exc) from exc
+        response = None
+        last_error: Exception | None = None
+        for llm in self._vision_llms:
+            try:
+                response = llm.invoke([message])
+                break
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "Agent 4 vision call failed on %s: %s", llm.model, exc
+                )
+        if response is None:
+            logger.error("Agent 4: every vision model failed")
+            raise ai_service_error_from(last_error) from last_error
 
         result = self._parse(str(response.content))
         logger.info(

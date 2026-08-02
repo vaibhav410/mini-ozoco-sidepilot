@@ -84,16 +84,23 @@ def analyze_screenshot(filename: str, data: bytes) -> ScreenAnalyzeResponse:
 
     agent = get_screen_agent()
 
-    # Primary path: one multimodal Gemini call.
+    # Primary path: multimodal Gemini (primary + fallback vision model).
+    vision_error: Exception | None = None
     try:
         analysis = agent.analyze_image(image_b64, payload_mime)
         return ScreenAnalyzeResponse(**analysis, analysis_method="gemini_vision")
     except Exception as exc:
+        vision_error = exc
         logger.warning("Vision analysis failed (%s); trying OCR fallback", exc)
 
     # Fallback path: OCR on the full-resolution image, then the text LLM.
     ocr_text = extract_text(image)
     if not ocr_text:
+        # Preserve the specific vision failure (e.g. the rate-limit
+        # message with its "wait a minute" advice) instead of hiding it
+        # behind a generic error.
+        if isinstance(vision_error, AIServiceError):
+            raise vision_error
         raise AIServiceError(
             "Screen analysis is temporarily unavailable: the vision model "
             "failed and OCR could not extract any text. Please try again."
