@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+__pycache__
+*.pyc
+.venv
+venv
+uploads
+exports
+data
+video.mp4
+*.docx
+docs
+node_modules

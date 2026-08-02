@@ -23,8 +23,6 @@ data/
 
 # Local-only artifacts (kept on disk, not part of the repository)
 *.docx
-Dockerfile
-.dockerignore
 DEMO_GUIDE.md
 DESIGN_DOCUMENT.md
 INTERVIEW_PREP.md

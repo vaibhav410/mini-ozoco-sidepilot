@@ -1,0 +1,48 @@
+# Mini OZOCO SidePilot -- full production stack: app + PostgreSQL.
+#
+#   docker compose up --build
+#   open http://localhost:8000      (app)
+#   open http://localhost:8000/admin (monitoring)
+#
+# Set GOOGLE_API_KEY (and optionally GROQ_API_KEY) in a .env file next
+# to this compose file; compose passes them through automatically.
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      EMBEDDINGS_BACKEND: gemini
+      DATABASE_URL: postgresql+psycopg2://sidepilot:sidepilot@db:5432/sidepilot
+    volumes:
+      # Persist user data across container rebuilds.
+      - uploads:/app/uploads
+      - exports:/app/exports
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sidepilot
+      POSTGRES_PASSWORD: sidepilot
+      POSTGRES_DB: sidepilot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sidepilot -d sidepilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+  exports:
