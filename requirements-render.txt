@@ -23,3 +23,7 @@ pytesseract
 
 # Automation & integrations (Agent 6)
 fpdf2
+
+# Persistent memory
+sqlalchemy
+psycopg2-binary

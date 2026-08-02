@@ -29,6 +29,12 @@ STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 async def lifespan(app: FastAPI):
     """Startup/shutdown hook: validate configuration before serving."""
     settings.validate()  # fail fast if GOOGLE_API_KEY is missing
+
+    # Persistent memory: PostgreSQL/SQLite when reachable, in-memory
+    # fallback otherwise -- the app serves either way.
+    from app.services.memory_service import memory
+
+    memory.initialize()
     logger.info(
         "Startup OK | model=%s | embeddings=%s | top_k=%d",
         settings.gemini_model,

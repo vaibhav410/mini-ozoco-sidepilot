@@ -34,7 +34,7 @@ from app.models.schemas import (
 from app.rag.prompt import NOT_FOUND_TOKEN
 from app.rag.retriever import retrieve_chunks
 from app.rag.vector_store import vector_store_manager
-from app.services.history import chat_history
+from app.services.memory_service import memory as chat_history
 from app.utils.errors import DocumentNotFoundError, NoDocumentsError
 from app.utils.logger import get_logger
 from app.workflow.context import WorkflowContext
@@ -122,6 +122,13 @@ class UnderstandStage:
         context.intent_confidence = result.confidence
         context.recommended_workflow = result.recommended_workflow
         context.intent_method = result.method
+        chat_history.record_intent(
+            context.session_id,
+            context.standalone_question,
+            result.intent,
+            result.confidence,
+            result.method,
+        )
         return (
             f"intent={result.intent} ({result.confidence:.2f}, "
             f"{result.method}) -> {result.recommended_workflow}"
@@ -241,7 +248,9 @@ class AutomateStage:
 
         outcome = get_automation_agent().execute(context)
         context.automation_result = asdict(outcome)
-
+        chat_history.record_action(
+            context.session_id, outcome.action, outcome.status, outcome.file
+        )
         chat_history.add(context.session_id, context.question, outcome.detail)
         context.response = AskResponse(
             answer=outcome.detail,

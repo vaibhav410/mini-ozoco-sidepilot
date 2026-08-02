@@ -57,6 +57,13 @@ class Settings:
     )
     max_file_size_mb: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
 
+    # --- Persistent memory ---
+    # PostgreSQL in production (postgresql+psycopg2://user:pass@host/db);
+    # defaults to a local SQLite file so dev + free hosting need no setup.
+    database_url: str = os.getenv(
+        "DATABASE_URL", f"sqlite:///{BASE_DIR / 'data' / 'sidepilot.db'}"
+    )
+
     # --- Automation & integrations (Agent 6) ---
     exports_dir: Path = field(
         default_factory=lambda: BASE_DIR / os.getenv("EXPORTS_DIR", "exports")
@@ -78,6 +85,8 @@ class Settings:
             )
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.exports_dir.mkdir(parents=True, exist_ok=True)
+        if self.database_url.startswith("sqlite"):
+            (BASE_DIR / "data").mkdir(parents=True, exist_ok=True)
 
 
 # Single shared instance imported by the rest of the application.

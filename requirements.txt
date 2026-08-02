@@ -24,3 +24,7 @@ pytesseract  # OCR fallback; also needs the Tesseract binary installed
 
 # --- Automation & integrations (Agent 6) ---
 fpdf2
+
+# --- Persistent memory ---
+sqlalchemy
+psycopg2-binary  # PostgreSQL driver; SQLite fallback needs nothing
