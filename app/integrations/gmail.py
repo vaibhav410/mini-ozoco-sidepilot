@@ -38,11 +38,23 @@ def create_draft(to: str, subject: str, body: str) -> dict:
         f"mailto:{quote(to)}?subject={quote(subject[:150])}"
         f"&body={quote(body[:1200])}"
     )
+    # Browser Gmail compose: works even on machines with no default
+    # mail app configured (where mailto silently does nothing).
+    gmail_web = (
+        "https://mail.google.com/mail/?view=cm&fs=1"
+        f"&to={quote(to)}&su={quote(subject[:150])}&body={quote(body[:1200])}"
+    )
 
     if settings.gmail_token_json:
         result = _create_gmail_api_draft(to, subject, body)
         if result is not None:
-            return {"backend": "gmail_api", "file": None, "mailto": mailto, **result}
+            return {
+                "backend": "gmail_api",
+                "file": None,
+                "mailto": mailto,
+                "gmail_web": gmail_web,
+                **result,
+            }
         logger.warning("Gmail API draft failed; falling back to .eml file")
 
     message = EmailMessage()
@@ -53,7 +65,12 @@ def create_draft(to: str, subject: str, body: str) -> dict:
     path = safe_export_path(timestamped_name(f"draft-{subject or 'email'}", "eml"))
     path.write_bytes(bytes(message))
     logger.info("Email draft saved as %s", path.name)
-    return {"backend": "eml_file", "file": path.name, "mailto": mailto}
+    return {
+        "backend": "eml_file",
+        "file": path.name,
+        "mailto": mailto,
+        "gmail_web": gmail_web,
+    }
 
 
 def _create_gmail_api_draft(to: str, subject: str, body: str) -> dict | None:

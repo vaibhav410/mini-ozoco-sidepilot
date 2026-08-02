@@ -119,6 +119,13 @@
   .doc-item.active .doc-icon { color: var(--green); }
   .doc-name { font-size: 13px; font-weight: 500; word-break: break-all; }
   .doc-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .doc-del {
+    margin-left: auto; flex-shrink: 0; width: 20px; height: 20px;
+    display: grid; place-items: center; border-radius: 6px;
+    color: var(--text-3); font-size: 12px; opacity: 0; transition: all .15s;
+  }
+  .doc-item:hover .doc-del { opacity: 1; }
+  .doc-del:hover { color: var(--red); background: var(--red-dim); }
   .side-upload {
     margin: 0 12px 12px;
     border: 1px dashed var(--border-2); border-radius: 10px;
@@ -530,10 +537,22 @@ function renderDocs() {
     btn.innerHTML =
       '<span class="doc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>' +
       '<span><span class="doc-name">' + esc(d.filename) + '</span>' +
-      '<div class="doc-meta">' + esc(d.category) + " · " + d.chunks + " chunks</div></span>";
+      '<div class="doc-meta">' + esc(d.category) + " · " + d.chunks + " chunks</div></span>" +
+      '<span class="doc-del" title="Remove from index">✕</span>';
     btn.onclick = () => {
       state.activeDocId = state.activeDocId === d.doc_id ? null : d.doc_id;
       renderDocs(); renderScope(); closeSidebar();
+    };
+    btn.querySelector(".doc-del").onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm("Remove " + d.filename + " from the index? Its content will no longer be used.")) return;
+      try {
+        const r = await fetch("/documents/" + encodeURIComponent(d.doc_id), { method: "DELETE" });
+        if (!r.ok) throw new Error((await r.json()).detail || "Delete failed");
+        if (state.activeDocId === d.doc_id) state.activeDocId = null;
+        toast("Removed " + d.filename);
+        await loadDocs(); renderScope(); ping();
+      } catch (err) { toast(err.message, true); }
     };
     list.appendChild(btn);
   }
@@ -787,7 +806,8 @@ function renderFinal(shell, r) {
     let actions = "";
     if (r.automation.download_url) actions += '<a class="auto-btn" href="' + esc(r.automation.download_url) + '" download>⬇ Download ' + esc(r.automation.file || "file") + "</a>";
     if (x.body) actions += '<button class="auto-btn ghost" data-copy="1">📋 Copy draft</button>';
-    if (x.mailto) actions += '<a class="auto-btn ghost" href="' + esc(x.mailto) + '">✉ Open in mail app</a>';
+    if (x.gmail_web) actions += '<a class="auto-btn ghost" href="' + esc(x.gmail_web) + '" target="_blank" rel="noopener">✉ Open in Gmail</a>';
+    else if (x.mailto) actions += '<a class="auto-btn ghost" href="' + esc(x.mailto) + '">✉ Open in mail app</a>';
     extras += '<div class="auto-card"><div class="auto-head">⚡ Automation · ' + esc(r.automation.action) + '</div><div class="auto-actions">' + actions + "</div></div>";
   }
 
@@ -842,24 +862,81 @@ $("ttsToggle").onclick = () => {
   if (!state.tts) speechSynthesis.cancel();
   toast(state.tts ? "Answers will be spoken aloud" : "Voice output off");
 };
+/* Voice input: record with MediaRecorder (works in every browser) and
+   transcribe on the backend via Groq Whisper. Falls back to the Web
+   Speech API only if the backend route is unavailable. */
+let mediaRecorder = null, audioChunks = [];
+$("micBtn").onclick = async () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    webSpeechFallback();
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    toast("Microphone blocked — allow mic access in the address bar", true);
+    return;
+  }
+  try {
+    mediaRecorder = new MediaRecorder(stream);
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop());
+    webSpeechFallback();
+    return;
+  }
+  audioChunks = [];
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop());
+    $("micBtn").classList.remove("rec");
+    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+    mediaRecorder = null;
+    if (blob.size < 800) { toast("No audio captured — hold the mic longer", true); return; }
+    toast("Transcribing…");
+    const form = new FormData();
+    form.append("file", blob, "voice.webm");
+    try {
+      const r = await fetch("/speech/transcribe", { method: "POST", body: form });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || "Transcription failed");
+      if (!j.text) { toast("Didn't catch any speech — try again", true); return; }
+      input.value = (input.value ? input.value + " " : "") + j.text;
+      autoSize(); updateSend(); input.focus();
+      toast("Got it — press Enter to send");
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+  mediaRecorder.start();
+  $("micBtn").classList.add("rec");
+  toast("🎙 Listening… click the mic again to stop");
+};
+
+/* Legacy path for browsers without MediaRecorder */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognizer = null, recording = false;
-$("micBtn").onclick = () => {
-  if (!SR) { toast("Voice input needs Chrome or Edge", true); return; }
-  if (recording) { recognizer.stop(); return; }
-  recognizer = new SR();
+function webSpeechFallback() {
+  if (!SR) { toast("Voice input is not supported in this browser", true); return; }
+  const recognizer = new SR();
   recognizer.lang = "en-US";
   recognizer.interimResults = true;
   recognizer.onresult = (e) => {
     input.value = Array.from(e.results).map((r0) => r0[0].transcript).join("");
     autoSize(); updateSend();
   };
-  recognizer.onend = () => { recording = false; $("micBtn").classList.remove("rec"); };
-  recognizer.onerror = () => { recording = false; $("micBtn").classList.remove("rec"); };
+  recognizer.onend = () => $("micBtn").classList.remove("rec");
+  recognizer.onerror = (e) => {
+    $("micBtn").classList.remove("rec");
+    toast("Voice input error: " + (e.error || "unknown"), true);
+  };
   recognizer.start();
-  recording = true;
   $("micBtn").classList.add("rec");
-};
+  toast("🎙 Listening…");
+}
 
 /* ================= Composer ================= */
 const input = $("input");
@@ -921,6 +998,8 @@ $("scrim").onclick = closeSidebar;
 /* ================= Init ================= */
 loadDocs();
 updateSend();
+/* Warm the TTS voice list (some browsers return [] until this fires). */
+try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); } catch (e) {}
 </script>
 </body>
 </html>

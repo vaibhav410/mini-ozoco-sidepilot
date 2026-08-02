@@ -13,6 +13,7 @@ context (retrieved chunks + screen analysis) collected by the earlier
 pipeline stages.
 """
 
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Protocol
@@ -31,6 +32,23 @@ from app.workflow.context import WorkflowContext
 logger = get_logger(__name__)
 
 _MAX_CONTEXT_CHARS = 6000
+
+# Words that signal the user actually wants their documents/screen used
+# ("draft an email based on the resume", "introduce the candidate").
+# A generic "draft an email" matches nothing -> no document grounding,
+# so uploaded content never leaks into unrelated drafts.
+_DOC_REFERENCE_PATTERN = re.compile(
+    r"\b(resume|cv|documents?|docs?|files?|reports?|invoices?|papers?|"
+    r"candidate|applicant|he|she|him|his|her|their|screen|uploaded|"
+    r"attached|based on|summary|content)\b",
+    re.IGNORECASE,
+)
+
+GENERIC_DRAFT_HINT = (
+    "\n\n_Tip: this is a generic draft because your request didn't "
+    "mention any document. Say e.g. \"based on the resume\" to "
+    "personalize it._"
+)
 
 
 @dataclass
@@ -65,10 +83,11 @@ class EmailDraftHandler:
         self._chain = EMAIL_DRAFT_PROMPT | build_llm(temperature=0.3)
 
     def execute(self, context: WorkflowContext) -> AutomationOutcome:
+        grounded = _references_documents(context)
         response = self._chain.invoke(
             {
                 "question": context.standalone_question,
-                "context": _grounding_text(context),
+                "context": _grounding_text(context) if grounded else "(none)",
             }
         )
         data = extract_json_object(str(response.content)) or {}
@@ -85,6 +104,7 @@ class EmailDraftHandler:
                 if result["backend"] == "eml_file"
                 else "Created as a Gmail draft in your account."
             )
+            + ("" if grounded else GENERIC_DRAFT_HINT)
         )
         return AutomationOutcome(
             action=self.action,
@@ -97,6 +117,7 @@ class EmailDraftHandler:
                 "subject": subject,
                 "body": body,
                 "mailto": result["mailto"],
+                "gmail_web": result.get("gmail_web"),
                 "backend": result["backend"],
             },
         )
@@ -152,10 +173,11 @@ class ActionPlanHandler:
         self._chain = ACTION_PLAN_PROMPT | build_llm(temperature=0.3)
 
     def execute(self, context: WorkflowContext) -> AutomationOutcome:
+        grounded = _references_documents(context)
         response = self._chain.invoke(
             {
                 "question": context.standalone_question,
-                "context": _grounding_text(context),
+                "context": _grounding_text(context) if grounded else "(none)",
             }
         )
         plan = str(response.content).strip().removeprefix("```markdown").strip("` \n")
@@ -223,6 +245,28 @@ class AutomationAgent:
             outcome.file or "-",
         )
         return outcome
+
+
+def _references_documents(context: WorkflowContext) -> bool:
+    """Does the request actually refer to the user's documents/screen?
+
+    Grounding is opt-in: uploaded content is used only when the request
+    mentions it (keywords, an uploaded filename, or attached screen
+    context in a screen-related request). A bare "draft an email" stays
+    generic instead of leaking whoever's resume happens to be indexed.
+    """
+    question = context.standalone_question
+    if _DOC_REFERENCE_PATTERN.search(question):
+        return True
+    # Mentioning an uploaded filename ("about invoice_4508.pdf") counts.
+    from app.rag.vector_store import vector_store_manager
+
+    lowered = question.lower()
+    for meta in vector_store_manager.registry.values():
+        stem = meta["filename"].rsplit(".", 1)[0].lower()
+        if len(stem) > 3 and stem in lowered:
+            return True
+    return False
 
 
 def _grounding_text(context: WorkflowContext) -> str:

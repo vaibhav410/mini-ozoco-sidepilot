@@ -3,9 +3,14 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
-from app.models.schemas import DocumentInfo, DocumentsResponse, UploadResponse
+from app.models.schemas import (
+    DeleteDocumentResponse,
+    DocumentInfo,
+    DocumentsResponse,
+    UploadResponse,
+)
 from app.rag.vector_store import vector_store_manager
-from app.services.document_service import process_upload
+from app.services.document_service import process_upload, remove_document
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
 
@@ -62,3 +67,20 @@ def list_documents() -> DocumentsResponse:
             for doc_id, meta in vector_store_manager.registry.items()
         ]
     )
+
+
+@router.delete(
+    "/documents/{doc_id}",
+    response_model=DeleteDocumentResponse,
+    summary="Remove a document from the index",
+    description="Deletes the document's chunks from FAISS, its registry "
+    "entry, and the saved file -- so its content can no longer influence "
+    "answers or drafts.",
+)
+def delete_document(doc_id: str) -> DeleteDocumentResponse:
+    """Handle a document removal request."""
+    if not remove_document(doc_id):
+        raise HTTPException(
+            status_code=404, detail=f"No document found with id '{doc_id}'."
+        )
+    return DeleteDocumentResponse(doc_id=doc_id)

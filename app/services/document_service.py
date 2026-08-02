@@ -98,3 +98,22 @@ def process_upload(filename: str, data: bytes) -> UploadResponse:
         chunks_indexed=chunks_indexed,
         status="indexed",
     )
+
+
+def remove_document(doc_id: str) -> bool:
+    """Delete a document: FAISS chunks, registry entry, saved file.
+
+    Args:
+        doc_id: Id assigned at upload time.
+
+    Returns:
+        True if the document existed and was removed.
+    """
+    removed = vector_store_manager.remove_document(doc_id)
+    if removed:
+        for path in settings.upload_dir.glob(f"{doc_id}_*"):
+            try:
+                path.unlink()
+            except OSError as exc:
+                logger.warning("Could not delete %s: %s", path.name, exc)
+    return removed

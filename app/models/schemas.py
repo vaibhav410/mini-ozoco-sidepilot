@@ -175,6 +175,12 @@ class AskResponse(BaseModel):
     )
 
 
+class TranscribeResponse(BaseModel):
+    """Returned by POST /speech/transcribe."""
+
+    text: str = Field(description="Transcribed speech (empty for silence)")
+
+
 class ScreenAnalyzeResponse(BaseModel):
     """Returned by POST /screen/analyze -- Agent 4's screen understanding."""
 
@@ -219,6 +225,13 @@ class DocumentsResponse(BaseModel):
     """Returned by GET /documents."""
 
     documents: list[DocumentInfo]
+
+
+class DeleteDocumentResponse(BaseModel):
+    """Returned by DELETE /documents/{doc_id}."""
+
+    doc_id: str = Field(description="Id of the removed document")
+    status: str = Field(default="deleted", description="Removal status")
 
 
 class HealthResponse(BaseModel):

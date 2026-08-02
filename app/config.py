@@ -63,6 +63,10 @@ class Settings:
     )
     max_file_size_mb: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
 
+    # --- Speech (voice input) ---
+    # Groq-hosted Whisper model for /speech/transcribe.
+    speech_model: str = os.getenv("SPEECH_MODEL", "whisper-large-v3-turbo")
+
     # --- Persistent memory ---
     # PostgreSQL in production (postgresql+psycopg2://user:pass@host/db);
     # defaults to a local SQLite file so dev + free hosting need no setup.

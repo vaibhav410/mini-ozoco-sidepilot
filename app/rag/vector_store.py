@@ -66,8 +66,9 @@ class VectorStoreManager:
         if self._index is None:
             # First document: create the FAISS index from these chunks.
             self._index = FAISS.from_documents(chunks, get_embeddings())
+            chunk_ids = list(self._index.index_to_docstore_id.values())
         else:
-            self._index.add_documents(chunks)
+            chunk_ids = self._index.add_documents(chunks)
 
         self.registry[doc_id] = {
             "filename": filename,
@@ -75,6 +76,8 @@ class VectorStoreManager:
             "summary": summary,
             "topics": topics,
             "chunks": len(chunks),
+            # Stored so the document can be deleted from FAISS later.
+            "chunk_ids": chunk_ids,
         }
         logger.info(
             "Indexed '%s' (doc_id=%s, category=%s) with %d chunks",
@@ -84,6 +87,30 @@ class VectorStoreManager:
             len(chunks),
         )
         return len(chunks)
+
+    def remove_document(self, doc_id: str) -> bool:
+        """Delete one document's chunks from FAISS and the registry.
+
+        Args:
+            doc_id: Id assigned at upload time.
+
+        Returns:
+            True if the document existed and was removed.
+        """
+        meta = self.registry.pop(doc_id, None)
+        if meta is None:
+            return False
+        if self._index is not None and meta.get("chunk_ids"):
+            try:
+                self._index.delete(meta["chunk_ids"])
+            except Exception as exc:  # index inconsistency must not 500
+                logger.warning("FAISS delete failed for %s: %s", doc_id, exc)
+        if not self.registry:
+            self._index = None  # empty index -> fresh start
+        logger.info(
+            "Removed '%s' (doc_id=%s) from the index", meta["filename"], doc_id
+        )
+        return True
 
     def search(
         self, query: str, k: int, doc_id: str | None = None

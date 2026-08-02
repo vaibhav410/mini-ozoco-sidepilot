@@ -20,6 +20,7 @@ from app.routes.chat import router as chat_router
 from app.routes.exports import router as exports_router
 from app.routes.intent import router as intent_router
 from app.routes.screen import router as screen_router
+from app.routes.speech import router as speech_router
 from app.routes.upload import router as upload_router
 from app.utils.logger import get_logger
 
@@ -69,6 +70,7 @@ app.include_router(screen_router)
 app.include_router(intent_router)
 app.include_router(exports_router)
 app.include_router(admin_router)
+app.include_router(speech_router)
 
 
 @app.middleware("http")

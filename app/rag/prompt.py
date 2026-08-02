@@ -183,20 +183,28 @@ Respond with ONLY a valid JSON object, no markdown fences:
 
 EMAIL_DRAFT_PROMPT = ChatPromptTemplate.from_template(
     """You are an email drafting agent inside an AI SidePilot assistant.
-Write a professional email that fulfils the user's request, grounded in
-the context below when relevant.
+Write a professional email that fulfils the user's request.
 
-Context (documents / screen):
+Context from the user's documents/screen (may be empty):
 ---
 {context}
 ---
 
 User request: {question}
 
+Rules:
+- Use the context ONLY if the user's request explicitly refers to it
+  (mentions a document, the resume, the screen, or a person/fact in it).
+- If the context is "(none)" or the request is generic, write a clean
+  reusable draft with placeholders like [Recipient Name], [Your Name],
+  [Company] -- NEVER copy names or facts from documents the user did
+  not ask to use.
+- Professional tone, plain text body.
+
 Respond with ONLY a valid JSON object, no markdown fences:
 {{"to": "<recipient address if identifiable, else empty string>",
  "subject": "<concise subject line>",
- "body": "<the full email body, plain text, professional tone>"}}"""
+ "body": "<the full email body, plain text>"}}"""
 )
 
 EXPORT_SUMMARY_PROMPT = ChatPromptTemplate.from_template(
@@ -217,15 +225,20 @@ Reply with ONLY the Markdown document, starting with a # title line."""
 
 ACTION_PLAN_PROMPT = ChatPromptTemplate.from_template(
     """You are a planning agent. Create a concrete, step-by-step action
-plan that fulfils the user's request, grounded in the context when
-relevant.
+plan that fulfils the user's request.
 
-Context (documents / screen):
+Context from the user's documents/screen (may be empty):
 ---
 {context}
 ---
 
 User request: {question}
+
+Rules:
+- Use the context ONLY if the user's request explicitly refers to it.
+- If the context is "(none)" or the request is generic, write a
+  general-purpose plan without inventing names or facts from documents
+  the user did not ask to use.
 
 Reply with ONLY a Markdown document: a # title line, then numbered
 steps, each with one short explanation line."""
