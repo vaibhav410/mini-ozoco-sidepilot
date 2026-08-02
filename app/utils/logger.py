@@ -11,11 +11,22 @@ Usage in any module:
 import logging
 import sys
 
-# One consistent format everywhere: time | level | module | message
-LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+# One consistent format everywhere:
+# time | level | request-id | module | message
+LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(request_id)s | %(name)s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _configured = False
+
+
+class _RequestIdFilter(logging.Filter):
+    """Stamp every record with the current request id (or '-')."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        from app.utils.request_context import request_id_var
+
+        record.request_id = request_id_var.get()
+        return True
 
 
 def _configure_root() -> None:
@@ -29,6 +40,8 @@ def _configure_root() -> None:
         datefmt=DATE_FORMAT,
         stream=sys.stdout,
     )
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(_RequestIdFilter())
     # Quiet down noisy third-party libraries so our own logs stay readable.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)

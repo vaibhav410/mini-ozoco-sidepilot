@@ -27,3 +27,6 @@ fpdf2
 # Persistent memory
 sqlalchemy
 psycopg2-binary
+
+# Observability / admin
+psutil

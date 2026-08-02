@@ -106,7 +106,14 @@ def stream_events(
         token_callback=gate.push,
     )
 
+    # Propagate the request id into the worker thread: contextvars do
+    # not cross thread boundaries on their own.
+    from app.utils.request_context import request_id_var
+
+    request_id = request_id_var.get()
+
     def work() -> None:
+        request_id_var.set(request_id)
         try:
             get_workflow_engine().run(context, on_stage=on_stage)
             gate.flush()

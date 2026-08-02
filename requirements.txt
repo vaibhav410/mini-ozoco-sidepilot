@@ -28,3 +28,6 @@ fpdf2
 # --- Persistent memory ---
 sqlalchemy
 psycopg2-binary  # PostgreSQL driver; SQLite fallback needs nothing
+
+# --- Observability / admin ---
+psutil

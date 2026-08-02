@@ -20,6 +20,7 @@ from time import perf_counter
 from typing import Callable, Protocol, Sequence, runtime_checkable
 
 from app.utils.logger import get_logger
+from app.utils.metrics import metrics
 from app.workflow.context import StageTrace, WorkflowContext
 
 logger = get_logger(__name__)
@@ -121,6 +122,7 @@ class WorkflowEngine:
             )
             context.trace.append(entry)
             _notify(on_stage, entry)
+            metrics.record_timing(f"stage.{stage.name}", duration_ms)
             logger.info(
                 "WORKFLOW | stage=%-10s %-9s %5.0f ms | %s",
                 stage.name,
@@ -130,6 +132,8 @@ class WorkflowEngine:
             )
 
         total_ms = (perf_counter() - pipeline_start) * 1000
+        metrics.record_timing("workflow.total", total_ms)
+        metrics.increment(f"intent.{context.intent}")
         logger.info("WORKFLOW | done in %.0f ms", total_ms)
         return context
 

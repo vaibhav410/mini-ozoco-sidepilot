@@ -6,13 +6,16 @@ Run with:
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.models.schemas import HealthResponse
 from app.rag.vector_store import vector_store_manager
+from app.routes.admin import router as admin_router
 from app.routes.chat import router as chat_router
 from app.routes.exports import router as exports_router
 from app.routes.intent import router as intent_router
@@ -65,6 +68,43 @@ app.include_router(chat_router)
 app.include_router(screen_router)
 app.include_router(intent_router)
 app.include_router(exports_router)
+app.include_router(admin_router)
+
+
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    """Stamp every request with an id, time it, and record metrics.
+
+    The id is honored from an incoming X-Request-ID header (so a
+    frontend or proxy can correlate) and returned on the response.
+    """
+    from app.utils.metrics import metrics
+    from app.utils.request_context import request_id_var
+
+    request_id = request.headers.get("X-Request-ID") or uuid4().hex[:8]
+    token = request_id_var.set(request_id)
+    started = perf_counter()
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+
+    duration_ms = (perf_counter() - started) * 1000
+    # Use the route template (e.g. /exports/{filename}) so metric keys
+    # stay low-cardinality no matter how many files exist.
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    if path not in {"/health", "/favicon.ico"}:
+        metrics.record_timing(f"http.{request.method} {path}", duration_ms)
+        logger.info(
+            "REQUEST | %s %s -> %d in %.0f ms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 @app.get(
