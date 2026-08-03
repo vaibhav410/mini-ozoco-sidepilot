@@ -1,5 +1,12 @@
 # Render Blueprint -- deploys the Mini OZOCO SidePilot AI System.
-# Free tier: 512 MB RAM, sleeps after 15 min idle (first request wakes it).
+# Free tier: 512 MB RAM, sleeps after 15 min idle (first request wakes it),
+# and has NO persistent disk -- the local filesystem (uploads, exports,
+# the FAISS index under INDEX_DIR) is wiped on every redeploy and on
+# most sleep/wake cycles. Chat history/intents/actions survive that
+# because they live in DATABASE_URL (set it to a hosted Postgres, e.g.
+# Neon's free tier, for real persistence in production); document
+# uploads are best-effort on this plan -- for durable documents too,
+# attach a Render Disk mounted at INDEX_DIR/UPLOAD_DIR (paid).
 services:
   - type: web
     name: ozoco-sidepilot
@@ -15,9 +22,21 @@ services:
         value: gemini
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
+      - key: GEMINI_VISION_FALLBACK_MODEL
+        value: gemini-2.5-flash-lite
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: SPEECH_MODEL
+        value: whisper-large-v3-turbo
+      - key: RATE_LIMIT_REQUESTS
+        value: "40"
+      - key: RATE_LIMIT_WINDOW
+        value: "60"
       - key: GOOGLE_API_KEY
         sync: false # secret -- set in the Render dashboard
       - key: GROQ_API_KEY
         sync: false # secret -- set in the Render dashboard
+      - key: DATABASE_URL
+        sync: false # optional -- hosted Postgres URL for real persistence
+      - key: ADMIN_TOKEN
+        sync: false # optional -- protects /admin* once the app is public

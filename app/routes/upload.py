@@ -1,6 +1,6 @@
 """POST /upload -- document upload endpoint (HTTP layer only)."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.schemas import (
@@ -13,6 +13,7 @@ from app.rag.vector_store import vector_store_manager
 from app.services.document_service import process_upload, remove_document
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
+from app.utils.security import require_admin
 
 logger = get_logger(__name__)
 
@@ -75,7 +76,8 @@ def list_documents() -> DocumentsResponse:
     summary="Remove a document from the index",
     description="Deletes the document's chunks from FAISS, its registry "
     "entry, and the saved file -- so its content can no longer influence "
-    "answers or drafts.",
+    "answers or drafts. Requires ADMIN_TOKEN when one is configured.",
+    dependencies=[Depends(require_admin)],
 )
 def delete_document(doc_id: str) -> DeleteDocumentResponse:
     """Handle a document removal request."""

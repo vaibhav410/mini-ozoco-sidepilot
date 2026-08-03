@@ -26,6 +26,11 @@ from app.workflow import StageTrace, WorkflowContext, get_workflow_engine
 logger = get_logger(__name__)
 
 _SENTINEL = object()
+# Max time stream_events() blocks per queue poll. Bounds how long a
+# disconnect check in the route can be delayed by a single call -- it
+# is NOT how fast an in-flight LLM call aborts (that isn't cancellable
+# through LangChain), but it does stop the *next* stage from starting.
+_POLL_SECONDS = 0.2
 
 
 def answer_question(
@@ -67,7 +72,8 @@ def stream_events(
     doc_id: str | None = None,
     session_id: str = "default",
     screen_context: dict[str, Any] | None = None,
-) -> Iterator[dict[str, Any]]:
+    cancel_event: threading.Event | None = None,
+) -> Iterator[dict[str, Any] | None]:
     """Run the pipeline while yielding live events for the SSE route.
 
     Event shapes (``{"event": ..., "data": ...}``):
@@ -78,8 +84,18 @@ def stream_events(
     - ``error``: a failure (detail, status)
 
     The pipeline runs in a worker thread; this generator drains a queue,
-    so tokens reach the client the moment the model produces them.
+    so tokens reach the client the moment the model produces them. Each
+    poll is bounded (``_POLL_SECONDS``), and a bare ``None`` is yielded
+    on every timeout with nothing new -- this hands control back to the
+    caller regularly so it can check for a client disconnect and call
+    ``cancel_event.set()`` without waiting on a full pipeline stage.
+
+    Args:
+        cancel_event: Externally owned cancellation flag. If omitted,
+            one is created (workflow still stops itself on cancellation,
+            just with nothing external able to trigger it).
     """
+    cancel_event = cancel_event or threading.Event()
     events: queue.Queue = queue.Queue()
 
     def emit(event: str, data: Any) -> None:
@@ -104,6 +120,7 @@ def stream_events(
         session_id=session_id,
         screen_context=screen_context,
         token_callback=gate.push,
+        cancel_event=cancel_event,
     )
 
     # Propagate the request id into the worker thread: contextvars do
@@ -117,7 +134,13 @@ def stream_events(
         try:
             get_workflow_engine().run(context, on_stage=on_stage)
             gate.flush()
-            emit("final", _finalize(context).model_dump())
+            if context.cancelled:
+                # Expected outcome, not a failure: the client is already
+                # gone (nobody will receive this "final"), so there is
+                # nothing useful to build or log as an error.
+                logger.info("Streaming pipeline stopped: client disconnected")
+            else:
+                emit("final", _finalize(context).model_dump())
         except AppError as err:
             emit("error", {"detail": err.detail, "status": err.status_code})
         except Exception:
@@ -128,11 +151,25 @@ def stream_events(
 
     threading.Thread(target=work, daemon=True).start()
 
-    while True:
-        item = events.get()
-        if item is _SENTINEL:
-            break
-        yield item
+    try:
+        while True:
+            try:
+                item = events.get(timeout=_POLL_SECONDS)
+            except queue.Empty:
+                # Nothing new yet -- hand control back to the caller so
+                # it can check for a client disconnect. This is what
+                # makes cancellation actually responsive: without it,
+                # the generator stays blocked inside events.get() for
+                # however long the current stage's LLM call takes.
+                yield None
+                continue
+            if item is _SENTINEL:
+                break
+            yield item
+    finally:
+        # Reached on normal completion AND when the caller stops
+        # iterating (route detected a disconnect and broke its loop).
+        cancel_event.set()
 
 
 def _finalize(context: WorkflowContext) -> AskResponse:

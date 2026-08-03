@@ -54,7 +54,7 @@ Every `/ask` request travels [app/workflow/](app/workflow/):
 - **Persistent memory** — PostgreSQL (or SQLite fallback) stores sessions, chats, detected intents, executed actions and preferences. History survives restarts; the in-memory fallback keeps requests alive if the DB is down.
 - **Observability** — request IDs on every log line (honored from `X-Request-ID`), rolling per-stage and per-endpoint timings.
 - **Admin dashboard** — `/admin`: live system health, process memory, documents, sessions, stage-timing bars, endpoint latencies, intent distribution.
-- **Speech** — voice input (Web Speech API) and spoken answers (speech synthesis) in the UI.
+- **Speech** — voice input via `POST /speech/transcribe` (Groq Whisper, works in every browser) and spoken answers (browser speech synthesis).
 - **Resilience everywhere** — Gemini→Groq failover on all text agents, Vision→OCR→raw-text ladder on screen analysis, DB→in-memory fallback on memory, validated-or-withheld answers.
 
 ## 🌐 API
@@ -69,8 +69,9 @@ Every `/ask` request travels [app/workflow/](app/workflow/):
 | `/intent/detect` | POST | Standalone Agent 5 intent classification |
 | `/exports` | GET | List generated files (drafts, exports, plans) |
 | `/exports/{filename}` | GET | Download a generated file |
-| `/admin` | GET | Monitoring dashboard |
-| `/admin/stats` | GET | Live stats JSON |
+| `/admin` | GET | Monitoring dashboard (gated by `ADMIN_TOKEN` if set) |
+| `/admin/stats` | GET | Live stats JSON (gated by `ADMIN_TOKEN` if set) |
+| `/speech/transcribe` | POST | Voice input → transcribed text (Groq Whisper) |
 | `/health` | GET | Health check |
 
 Interactive Swagger docs at **`/docs`**.
@@ -123,7 +124,21 @@ static/                      # index.html (SidePilot UI) + admin.html (dashboard
 
 ## ⚙️ Configuration
 
-All via environment variables (see [.env.example](.env.example)): `GOOGLE_API_KEY` (required), `GROQ_API_KEY` (optional failover), `GEMINI_MODEL` / `GEMINI_VISION_MODEL`, `EMBEDDINGS_BACKEND` (`local`/`gemini`), `DATABASE_URL` (Postgres; SQLite default), `CHUNK_SIZE` / `CHUNK_OVERLAP` / `TOP_K`, upload/image size limits, `TESSERACT_CMD`, `GMAIL_TOKEN_JSON`.
+All via environment variables (see [.env.example](.env.example)): `GOOGLE_API_KEY` (required), `GROQ_API_KEY` (optional failover + Whisper voice input), `GEMINI_MODEL` / `GEMINI_VISION_MODEL` / `GEMINI_VISION_FALLBACK_MODEL`, `EMBEDDINGS_BACKEND` (`local`/`gemini`), `DATABASE_URL` (Postgres; SQLite default), `INDEX_DIR` (where the FAISS index is persisted), `CHUNK_SIZE` / `CHUNK_OVERLAP` / `TOP_K`, upload/image size limits, `TESSERACT_CMD`, `GMAIL_TOKEN_JSON`, `ADMIN_TOKEN`, `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW`.
+
+## 🔒 Security & Limits
+
+- **Rate limiting** — a per-IP sliding-window limiter (`RATE_LIMIT_REQUESTS` per `RATE_LIMIT_WINDOW` seconds, default 40/60s) covers `/ask`, `/upload`, `/screen/analyze`, `/intent/detect`, `/speech/transcribe` and every mutating request, returning `429` once exceeded.
+- **Bounded request bodies** — a `Content-Length` guard rejects oversized uploads/screenshots/audio with `413` *before* the body is buffered into memory, so a large request can't be used to exhaust RAM.
+- **Admin auth** — `/admin`, `/admin/stats` and `DELETE /documents/{id}` are open by default (single-user local demo); set `ADMIN_TOKEN` to require it via `Authorization: Bearer <token>`, `X-Admin-Token`, or `?token=` on the dashboard URL.
+- **Input validation** — `session_id` is capped at 64 chars (`[A-Za-z0-9_.:-]` only) to stay valid across both SQLite and Postgres; uploaded `.txt` files are rejected if they're not mostly printable text (binary/garbage doesn't get indexed).
+- **Concurrency safety** — the FAISS index and document registry are guarded by a lock, so concurrent uploads/deletes can't corrupt shared state.
+- **Known limitation (single-tenant)** — the document store is process-global, not scoped per session/user: anyone hitting this instance can see and (with `ADMIN_TOKEN`, delete) every uploaded document. This matches the assignment's single-user design; true multi-tenant isolation would need per-user auth and a namespaced store.
+
+## 💾 Persistence
+
+- **Chat history, intents, actions, preferences** — always in `DATABASE_URL` (SQLite by default, Postgres in production); survive restarts.
+- **Uploaded documents (FAISS index + registry)** — persisted to `INDEX_DIR` and reloaded on startup, so they also survive a restart. On Render's free tier the filesystem is ephemeral (no attached disk), so this survives process restarts but not redeploys/evictions — see the note in [render.yaml](render.yaml).
 
 ## 🛡️ Design Principles
 

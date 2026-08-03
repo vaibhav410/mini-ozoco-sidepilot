@@ -7,6 +7,7 @@ stage reads and writes the agreed fields, its internals are free to
 change.
 """
 
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -45,6 +46,14 @@ class WorkflowContext:
     token_callback: Callable[[str], None] | None = field(
         default=None, repr=False
     )
+    # Set when the client disconnects mid-stream; the engine stops before
+    # the next stage so we don't burn LLM quota on an abandoned request.
+    cancel_event: threading.Event | None = field(default=None, repr=False)
+
+    @property
+    def cancelled(self) -> bool:
+        """True when the caller has asked to abort this workflow."""
+        return self.cancel_event is not None and self.cancel_event.is_set()
 
     # --- Written by Observe ---
     observations: dict[str, Any] = field(default_factory=dict)

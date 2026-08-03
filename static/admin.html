@@ -76,9 +76,22 @@ function fmtUptime(sec) {
 function card(label, big, sub) {
   return '<div class="card"><div class="label">'+label+'</div><div class="big">'+big+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';
 }
+/* If ADMIN_TOKEN is configured server-side, the dashboard was opened
+   as /admin?token=... -- forward it to every /admin/* call so the
+   page keeps working instead of showing 401s. */
+const adminToken = new URLSearchParams(location.search).get("token") || "";
+function adminFetch(path) {
+  const url = adminToken ? path + "?token=" + encodeURIComponent(adminToken) : path;
+  return fetch(url);
+}
+
 async function refresh() {
   try {
-    const r = await fetch("/admin/stats");
+    const r = await adminFetch("/admin/stats");
+    if (r.status === 401) {
+      document.getElementById("refreshed").textContent = "unauthorized — open with ?token=<ADMIN_TOKEN>";
+      return;
+    }
     const s = await r.json();
     const m = s.metrics, mem = s.memory, sys = s.system;
 

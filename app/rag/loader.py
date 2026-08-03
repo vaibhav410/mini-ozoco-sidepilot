@@ -61,6 +61,16 @@ def load_document(path: Path) -> list[Document]:
             "PDFs are not supported."
         )
 
+    # Reject binary/garbage masquerading as text: real documents are
+    # overwhelmingly printable. A low printable ratio means the file was
+    # decoded from bytes that are not actually text (indexing it would
+    # only pollute retrieval and waste the classification call).
+    if suffix == ".txt" and _printable_ratio(full_text) < 0.85:
+        raise UnsupportedFileError(
+            "This file does not appear to be readable text. Please upload "
+            "a valid PDF or TXT document."
+        )
+
     logger.info(
         "Loaded %s: %d page(s), %d characters", path.name, len(documents), len(full_text)
     )
@@ -70,3 +80,12 @@ def load_document(path: Path) -> list[Document]:
 def documents_to_text(documents: list[Document]) -> str:
     """Join loaded documents into one plain-text string (for Agent 1)."""
     return "\n".join(doc.page_content for doc in documents).strip()
+
+
+def _printable_ratio(text: str, sample: int = 4000) -> float:
+    """Fraction of characters that are printable/whitespace (0.0-1.0)."""
+    excerpt = text[:sample]
+    if not excerpt:
+        return 0.0
+    printable = sum(ch.isprintable() or ch in "\r\n\t" for ch in excerpt)
+    return printable / len(excerpt)

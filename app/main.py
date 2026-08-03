@@ -10,7 +10,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
 from app.models.schemas import HealthResponse
@@ -39,6 +39,11 @@ async def lifespan(app: FastAPI):
     from app.services.memory_service import memory
 
     memory.initialize()
+
+    # Restore uploaded documents (FAISS index + registry) from disk so
+    # they survive restarts, matching chat-history persistence.
+    vector_store_manager.load()
+
     logger.info(
         "Startup OK | model=%s | embeddings=%s | top_k=%d",
         settings.gemini_model,
@@ -71,6 +76,47 @@ app.include_router(intent_router)
 app.include_router(exports_router)
 app.include_router(admin_router)
 app.include_router(speech_router)
+
+
+# Routes subject to per-IP rate limiting (LLM/quota-consuming or writes).
+_RATE_LIMITED_PREFIXES = ("/ask", "/upload", "/screen", "/intent", "/speech")
+
+
+@app.middleware("http")
+async def guard_middleware(request: Request, call_next):
+    """Reject oversized bodies early and rate-limit expensive routes.
+
+    Runs before the body is read, so a huge upload is refused with 413
+    instead of being buffered into memory (the upload memory-DoS fix).
+    """
+    from app.utils.security import max_body_bytes, rate_limiter
+
+    # 1. Early Content-Length guard -- refuse before buffering.
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit():
+        if int(content_length) > max_body_bytes():
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body too large."},
+            )
+
+    # 2. Per-IP rate limiting on the expensive/mutating routes.
+    path = request.url.path
+    if request.method != "GET" or path.startswith(_RATE_LIMITED_PREFIXES):
+        if any(path.startswith(p) for p in _RATE_LIMITED_PREFIXES) or (
+            request.method in {"POST", "DELETE", "PUT", "PATCH"}
+        ):
+            client = request.client.host if request.client else "unknown"
+            if not rate_limiter.allow(client):
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail": "Too many requests. Please slow down and "
+                        "try again in a moment."
+                    },
+                )
+
+    return await call_next(request)
 
 
 @app.middleware("http")

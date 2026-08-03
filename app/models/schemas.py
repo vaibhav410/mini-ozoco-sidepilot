@@ -33,8 +33,10 @@ class AskRequest(BaseModel):
     )
     session_id: str = Field(
         default="default",
-        description="Conversation session id; follow-up questions in the same "
-        "session use chat history for context",
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+        description="Conversation session id (<=64 chars, alnum/_.:- only); "
+        "follow-up questions in the same session use chat history for context",
     )
     screen_context: dict | None = Field(
         default=None,

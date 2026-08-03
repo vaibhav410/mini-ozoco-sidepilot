@@ -91,6 +91,12 @@ class WorkflowEngine:
             context.question,
         )
         for stage in self._stages:
+            if context.cancelled:
+                logger.info(
+                    "WORKFLOW | cancelled before stage=%s (client disconnected)",
+                    stage.name,
+                )
+                break
             stage_start = perf_counter()
             try:
                 note = stage.run(context) or ""

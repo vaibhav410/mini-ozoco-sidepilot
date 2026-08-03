@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
 from app.config import settings
@@ -12,10 +12,13 @@ from app.rag.vector_store import vector_store_manager
 from app.services.memory_service import memory
 from app.utils.logger import get_logger
 from app.utils.metrics import metrics
+from app.utils.security import require_admin
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Admin"])
+# When ADMIN_TOKEN is configured, the whole admin surface requires it;
+# when it is empty the dependency is a no-op (open local demo).
+router = APIRouter(tags=["Admin"], dependencies=[Depends(require_admin)])
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 

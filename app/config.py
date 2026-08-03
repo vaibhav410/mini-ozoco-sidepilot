@@ -63,6 +63,21 @@ class Settings:
     )
     max_file_size_mb: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
 
+    # --- Persistence ---
+    # Where the FAISS index + registry are saved so documents survive
+    # restarts. Set to "" to disable on-disk persistence.
+    index_dir: Path = field(
+        default_factory=lambda: BASE_DIR / os.getenv("INDEX_DIR", "data/index")
+    )
+
+    # --- Security / limits ---
+    # Optional bearer token protecting /admin* and DELETE /documents.
+    # Empty = open (fine for a local single-user demo).
+    admin_token: str = os.getenv("ADMIN_TOKEN", "")
+    # Simple per-IP rate limit (requests per window) on write/LLM routes.
+    rate_limit_requests: int = int(os.getenv("RATE_LIMIT_REQUESTS", "40"))
+    rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+
     # --- Speech (voice input) ---
     # Groq-hosted Whisper model for /speech/transcribe.
     speech_model: str = os.getenv("SPEECH_MODEL", "whisper-large-v3-turbo")
@@ -95,6 +110,8 @@ class Settings:
             )
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.exports_dir.mkdir(parents=True, exist_ok=True)
+        if self.index_dir:
+            self.index_dir.mkdir(parents=True, exist_ok=True)
         if self.database_url.startswith("sqlite"):
             (BASE_DIR / "data").mkdir(parents=True, exist_ok=True)
 

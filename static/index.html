@@ -62,11 +62,6 @@
     z-index: 30; flex-shrink: 0;
   }
   .nav .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; white-space: nowrap; }
-  .brand-badge {
-    width: 26px; height: 26px; border-radius: 8px;
-    background: var(--white); color: #000;
-    display: grid; place-items: center; font-size: 13px; font-weight: 800;
-  }
   .nav .spacer { flex: 1; }
   .nav-btn {
     display: inline-flex; align-items: center; gap: 6px;
@@ -149,13 +144,8 @@
 
   /* ---------- Empty state (mentor item #8) ---------- */
   .empty { text-align: center; padding: 7vh 16px 0; }
-  .empty h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; margin: 18px 0 8px; }
+  .empty h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; margin: 4px 0 8px; }
   .empty p { color: var(--text-2); font-size: 14px; max-width: 480px; margin: 0 auto 26px; line-height: 1.6; }
-  .empty-badge {
-    width: 54px; height: 54px; margin: 0 auto; border-radius: 16px;
-    background: var(--surface-2); border: 1px solid var(--border);
-    display: grid; place-items: center; font-size: 24px;
-  }
   .drop-zone {
     max-width: 460px; margin: 0 auto 22px;
     border: 1.5px dashed var(--border-2); border-radius: 14px;
@@ -338,6 +328,10 @@
   .send-btn:disabled { opacity: .35; cursor: default; }
   .send-btn.stop { background: var(--red); color: #fff; }
   .hint { text-align: center; font-size: 11px; color: var(--text-3); margin-top: 8px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
 
   /* ---------- Toast ---------- */
   .toast {
@@ -367,35 +361,35 @@
 </head>
 <body>
 
-<nav class="nav">
-  <button class="icon-btn hamburger" id="hamburger" title="Documents">
+<nav class="nav" role="banner">
+  <button class="icon-btn hamburger" id="hamburger" title="Documents" aria-label="Toggle documents sidebar" aria-expanded="false" aria-controls="sidebar">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
-  <div class="brand"><span class="brand-badge">O</span> OZOCO SidePilot</div>
-  <span class="status-chip hide-sm"><span class="status-dot" id="statusDot"></span><span id="statusText">connecting</span></span>
+  <div class="brand">OZOCO SidePilot</div>
+  <span class="status-chip hide-sm" role="status" aria-live="polite"><span class="status-dot" id="statusDot"></span><span id="statusText">connecting</span></span>
   <div class="spacer"></div>
   <button class="nav-btn hide-sm" onclick="window.open('/docs','_blank')">API</button>
   <button class="nav-btn hide-sm" onclick="window.open('https://github.com/vaibhav410/mini-ozoco-sidepilot','_blank')">GitHub</button>
-  <button class="nav-btn" id="ttsToggle" title="Speak answers aloud">🔇</button>
+  <button class="nav-btn" id="ttsToggle" title="Speak answers aloud" aria-label="Toggle spoken answers" aria-pressed="false">🔇</button>
   <button class="nav-btn primary" id="newChat">New Chat</button>
 </nav>
 
 <div class="shell">
   <div class="scrim" id="scrim"></div>
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" role="complementary" aria-label="Documents">
     <div class="side-section">
       <div class="side-label">Documents
         <button class="all-docs-btn" id="allDocsBtn" title="Search across every document">ALL</button>
       </div>
     </div>
-    <div class="doc-list" id="docList"></div>
-    <button class="side-upload" id="sideUpload">+ Upload PDF / TXT</button>
+    <div class="doc-list" id="docList" role="list" aria-label="Uploaded documents"></div>
+    <button class="side-upload" id="sideUpload" aria-label="Upload a PDF or TXT document">+ Upload PDF / TXT</button>
     <div class="side-footer">
-      <button class="side-action" id="screenBtn">
+      <button class="side-action" id="screenBtn" aria-label="Analyze a screenshot">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         Analyze screenshot
       </button>
-      <button class="side-action" id="exportsBtn">
+      <button class="side-action" id="exportsBtn" aria-label="View generated files">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Generated files
       </button>
@@ -403,10 +397,9 @@
   </aside>
 
   <main class="main">
-    <div class="thread" id="thread">
+    <div class="thread" id="thread" role="log" aria-live="polite" aria-label="Conversation">
       <div class="thread-inner" id="threadInner">
         <div class="empty" id="empty">
-          <div class="empty-badge">🚀</div>
           <h1>Your AI SidePilot</h1>
           <p>Upload documents, share your screen, ask anything. Six agents observe, understand, analyze, guide and automate — with every answer validated before it reaches you.</p>
           <div class="drop-zone" id="dropZone">
@@ -423,30 +416,31 @@
       </div>
     </div>
 
-    <div class="composer-wrap">
+    <form class="composer-wrap" id="composerForm">
       <div class="composer">
+        <label for="input" class="sr-only">Ask a question or request an action</label>
         <textarea id="input" rows="1" placeholder="Ask about your documents, your screen, or request an action…"></textarea>
         <div class="composer-bar">
           <span class="chip-scope" id="scopeChip" style="display:none"></span>
           <span class="chip-scope screen" id="screenChip" style="display:none"></span>
-          <button class="icon-btn" id="attachBtn" title="Upload document">
+          <button type="button" class="icon-btn" id="attachBtn" title="Upload document" aria-label="Upload a document">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
-          <button class="icon-btn" id="micBtn" title="Voice input">
+          <button type="button" class="icon-btn" id="micBtn" title="Voice input" aria-label="Record voice input" aria-pressed="false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
           </button>
-          <button class="send-btn" id="sendBtn" disabled title="Send">
+          <button type="submit" class="send-btn" id="sendBtn" disabled aria-label="Send message">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
           </button>
         </div>
       </div>
       <div class="hint">Observe → Understand → Analyze → Guide → Automate · answers validated by Agent 3</div>
-    </div>
+    </form>
   </main>
 </div>
 
-<input type="file" id="fileInput" accept=".pdf,.txt" hidden>
-<input type="file" id="screenInput" accept=".png,.jpg,.jpeg" hidden>
+<input type="file" id="fileInput" accept=".pdf,.txt" hidden aria-hidden="true">
+<input type="file" id="screenInput" accept=".png,.jpg,.jpeg" hidden aria-hidden="true">
 
 <script>
 "use strict";
@@ -594,7 +588,8 @@ async function uploadFile(file) {
 $("fileInput").onchange = (e) => { uploadFile(e.target.files[0]); e.target.value = ""; };
 $("sideUpload").onclick = () => $("fileInput").click();
 $("attachBtn").onclick = () => $("fileInput").click();
-$("dropZone").onclick = () => $("fileInput").click();
+/* dropZone is (re)bound by bindEmptyStateHandlers() -- it's recreated
+   every time New Chat resets the empty state. */
 
 /* Drag & drop anywhere: docs -> upload, images -> screen analyze */
 ["dragenter", "dragover"].forEach((ev) => window.addEventListener(ev, (e) => {
@@ -956,26 +951,50 @@ input.addEventListener("input", () => { autoSize(); updateSend(); });
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
 });
-$("sendBtn").onclick = () => {
+$("composerForm").addEventListener("submit", (e) => {
+  e.preventDefault();
   if (state.streaming) { if (state.abort) state.abort.abort(); }
   else submit();
-};
+});
 function submit() {
   const q = input.value.trim();
   if (!q || state.streaming) return;
   input.value = ""; autoSize(); updateSend();
   ask(q);
 }
-document.querySelectorAll(".suggest").forEach((b) => {
-  b.onclick = () => { input.value = b.textContent; autoSize(); updateSend(); input.focus(); };
-});
-
 /* ================= Nav / misc ================= */
 $("newChat").onclick = () => {
+  if (state.streaming && state.abort) state.abort.abort();
   state.sessionId = "web-" + Math.random().toString(36).slice(2, 10);
-  speechSynthesis.cancel();
-  location.reload();
+  state.screenContext = null;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  // Reset in place instead of a full reload: keeps the sidebar's
+  // document list (documents are shared, not per-conversation) and
+  // avoids the flash/scroll-loss of location.reload().
+  $("threadInner").innerHTML =
+    '<div class="empty" id="empty">' +
+    '<h1>Your AI SidePilot</h1>' +
+    '<p>Upload documents, share your screen, ask anything. Six agents observe, understand, analyze, guide and automate — with every answer validated before it reaches you.</p>' +
+    '<div class="drop-zone" id="dropZone">' +
+    '<b>Drag a PDF, TXT or screenshot here</b><br>or click to browse</div>' +
+    '<div class="suggest-row" id="suggestRow">' +
+    '<button type="button" class="suggest">Summarize this document</button>' +
+    '<button type="button" class="suggest">What skills are listed?</button>' +
+    '<button type="button" class="suggest">What projects are mentioned?</button>' +
+    '<button type="button" class="suggest">Draft an email introducing the candidate</button>' +
+    '<button type="button" class="suggest">Export a summary as PDF</button></div></div>';
+  renderScope();
+  bindEmptyStateHandlers();
+  toast("New conversation started");
 };
+
+function bindEmptyStateHandlers() {
+  const dz = $("dropZone");
+  if (dz) dz.onclick = () => $("fileInput").click();
+  document.querySelectorAll(".suggest").forEach((b) => {
+    b.onclick = () => { input.value = b.textContent; autoSize(); updateSend(); input.focus(); };
+  });
+}
 $("exportsBtn").onclick = async () => {
   closeSidebar();
   try {
@@ -998,6 +1017,7 @@ $("scrim").onclick = closeSidebar;
 /* ================= Init ================= */
 loadDocs();
 updateSend();
+bindEmptyStateHandlers();
 /* Warm the TTS voice list (some browsers return [] until this fires). */
 try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); } catch (e) {}
 </script>
