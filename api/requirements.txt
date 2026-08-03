@@ -1,0 +1,31 @@
+# Colocated with api/index.py so Vercel's Python builder installs this
+# file instead of the root requirements.txt. No PyTorch / sentence-
+# transformers: Vercel's serverless function size limit can't fit them --
+# EMBEDDINGS_BACKEND=gemini (set in the Vercel project env vars) is used
+# instead. Local development uses ../requirements.txt.
+
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+
+langchain
+langchain-community
+langchain-google-genai
+langchain-groq
+
+pypdf
+faiss-cpu
+
+pillow
+pytesseract
+
+fpdf2
+
+sqlalchemy
+psycopg2-binary
+
+psutil
+
+clerk-backend-api
+jinja2

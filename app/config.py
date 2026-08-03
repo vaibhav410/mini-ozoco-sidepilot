@@ -134,7 +134,17 @@ class Settings:
         if self.index_dir:
             self.index_dir.mkdir(parents=True, exist_ok=True)
         if self.database_url.startswith("sqlite"):
-            (BASE_DIR / "data").mkdir(parents=True, exist_ok=True)
+            # The path after "sqlite:///" is exactly what SQLAlchemy will
+            # open -- relative ("sqlite:///data/x.db") or absolute
+            # ("sqlite:////tmp/x.db", note the extra leading slash).
+            # Deriving the directory from it (not assuming BASE_DIR/data)
+            # matters once DATABASE_URL is overridden to point somewhere
+            # else entirely, e.g. /tmp on a read-only deployment host.
+            db_file = self.database_url.removeprefix("sqlite:///")
+            db_path = Path(db_file)
+            if not db_path.is_absolute():
+                db_path = BASE_DIR / db_path
+            db_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 # Single shared instance imported by the rest of the application.

@@ -1,0 +1,9 @@
+# Not needed by the deployed function -- keeps the upload/build small.
+video.mp4
+samples/
+docker-compose.yml
+Dockerfile
+data/
+uploads/
+exports/
+.git/
