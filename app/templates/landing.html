@@ -145,6 +145,8 @@
   .footer-links a { color: var(--text-2); font-size: 13px; text-decoration: none; }
   .footer-links a:hover { color: var(--text); }
   .footer-copy { color: var(--text-3); font-size: 12px; }
+  .footer-admin { color: var(--text-3); font-size: 11.5px; text-decoration: none; opacity: .7; }
+  .footer-admin:hover { color: var(--text-2); opacity: 1; }
 
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -195,6 +197,7 @@
     <a href="https://github.com/vaibhav410/mini-ozoco-sidepilot" target="_blank" rel="noopener">GitHub</a>
   </div>
   <div class="spacer"></div>
+  <button class="nav-btn" id="navSignIn">Sign In</button>
   <button class="nav-btn primary" id="navStart">Start Chatting</button>
 </nav>
 
@@ -307,7 +310,9 @@
       <a href="/docs" target="_blank">API Docs</a>
       <a href="https://github.com/vaibhav410/mini-ozoco-sidepilot" target="_blank" rel="noopener">GitHub</a>
     </div>
-    <span class="footer-copy">Built for the OZOCO internship program.</span>
+    <span class="footer-copy">Built for the OZOCO internship program.
+      · <a href="/admin" class="footer-admin" id="footerAdminLogin">Admin Login</a>
+    </span>
   </div>
 </footer>
 
@@ -322,17 +327,70 @@ function toast(message) {
   setTimeout(() => el.remove(), 4000);
 }
 
+/* At most one navigation ever fires, even if more than one async path
+   decides to redirect (e.g. the deep-link handler and the session
+   listener both resolving around the same sign-in event). */
+let leaving = false;
+function goTo(url) {
+  if (leaving) return;
+  leaving = true;
+  location.href = url;
+}
+
+/* Where a sign-in was triggered from -- the Admin Login link and a
+   deep-link bounce (see /app, /admin's redirect to "/?signin=1&...")
+   need an exact destination, distinct from the ordinary role-based
+   default every other entry point uses. */
+function rememberRedirect(url) {
+  try { sessionStorage.setItem("sp_redirect", url); } catch (e) {}
+}
+function consumeRedirect() {
+  try {
+    const url = sessionStorage.getItem("sp_redirect");
+    sessionStorage.removeItem("sp_redirect");
+    return url;
+  } catch (e) { return null; }
+}
+
+/* Post-login destination: an explicit remembered target wins;
+   otherwise ask the server which role this session has -- admin lands
+   on /admin, everyone else on /app. ADMIN_EMAIL is checked server-side
+   in /auth/role; the client never decides this itself. */
+async function redirectAfterSignIn() {
+  const remembered = consumeRedirect();
+  if (remembered) { goTo(remembered); return; }
+  try {
+    const r = await fetch("/auth/role", { headers: await authHeaders() });
+    const j = await r.json();
+    goTo(j.role === "admin" ? "/admin" : "/app");
+  } catch (e) {
+    goTo("/app");
+  }
+}
+
 async function goToApp() {
   const clerk = await clerkReady();
   if (!clerk) { toast("Sign-in is not configured yet."); return; }
-  if (clerk.session) { location.href = "/app"; return; }
+  if (clerk.session) { redirectAfterSignIn(); return; }
   clerk.openSignIn();
 }
 
-["navStart", "heroStart", "finalStart"].forEach((id) => {
+async function goToAdminLogin(e) {
+  if (e) e.preventDefault();
+  const clerk = await clerkReady();
+  if (!clerk) { toast("Sign-in is not configured yet."); return; }
+  if (clerk.session) { goTo("/admin"); return; }
+  rememberRedirect("/admin");
+  clerk.openSignIn();
+}
+
+["navStart", "heroStart", "finalStart", "navSignIn"].forEach((id) => {
   const el = document.getElementById(id);
   if (el) el.onclick = goToApp;
 });
+
+const footerAdminLogin = document.getElementById("footerAdminLogin");
+if (footerAdminLogin) footerAdminLogin.onclick = goToAdminLogin;
 
 /* Live document count for the trust row -- real data, not a fake stat. */
 fetch("/health").then((r) => r.json()).then((j) => {
@@ -340,8 +398,26 @@ fetch("/health").then((r) => r.json()).then((j) => {
   if (el) el.textContent = j.documents_indexed;
 }).catch(() => {});
 
+/* Deep-link bounce: the server sent a signed-out visitor here from a
+   protected page (GET /app or /admin, when get_session_role sees no
+   session). Remember where they were headed and open the real Clerk
+   sign-in modal -- this IS "redirected to Clerk sign-in", just
+   rendered as a modal on this page instead of a separate hosted
+   route, since this app never configured one. */
+(async () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get("signin") !== "1") return;
+  const target = params.get("redirect_url") || "/app";
+  history.replaceState(null, "", location.pathname);
+  const clerk = await clerkReady();
+  if (!clerk) { toast("Sign-in is not configured yet."); return; }
+  if (clerk.session) { goTo(target); return; }
+  rememberRedirect(target);
+  clerk.openSignIn();
+})();
+
 /* Once signed in (including mid-session via the sign-in modal),
-   move straight into the app. */
+   move straight into the right place for this session's role. */
 (async () => {
   const clerk = await clerkReady();
   if (!clerk) return;
@@ -349,7 +425,7 @@ fetch("/health").then((r) => r.json()).then((j) => {
     document.getElementById("navStart").textContent = "Go to App";
   }
   clerk.addListener((payload) => {
-    if (payload && payload.session) location.href = "/app";
+    if (payload && payload.session) redirectAfterSignIn();
   });
 })();
 </script>

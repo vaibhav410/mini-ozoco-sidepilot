@@ -10,7 +10,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
@@ -23,6 +23,7 @@ from app.routes.intent import router as intent_router
 from app.routes.screen import router as screen_router
 from app.routes.speech import router as speech_router
 from app.routes.upload import router as upload_router
+from app.utils.auth import get_session_role
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -182,19 +183,33 @@ def serve_landing(request: Request):
     return response
 
 
+@app.get("/auth/role", include_in_schema=False)
+def auth_role(request: Request) -> dict:
+    """"anonymous" | "user" | "admin" for the caller's Clerk session.
+
+    Used only for the client's post-login redirect decision (admin ->
+    /admin, everyone else -> /app). Never trusted as an authorization
+    check itself -- every protected route re-verifies the session
+    server-side on its own via require_user/require_admin_any.
+    """
+    return {"role": get_session_role(request)}
+
+
 @app.get("/app", include_in_schema=False)
 def serve_app(request: Request):
-    """Serve the SidePilot chat app shell.
+    """Serve the SidePilot chat app shell -- signed-in users only.
 
-    Not gated server-side: Clerk's session lives behind its own
-    frontend-api domain, so a plain page navigation carries no
-    reliable proof of sign-in for this server to check by cookie. The
-    page's own script redirects to "/" the moment it confirms (via the
-    Clerk client, not a cookie) that no session is active, and every
-    real API call underneath requires a verified bearer token
-    (app.utils.auth.require_user) regardless of what the page shows --
-    that dependency, not this route, is the actual security boundary.
+    Gated server-side by the Clerk session cookie (verified via
+    ``get_session_role``, the same ``authenticate_request`` path every
+    protected API uses): a signed-out visitor never receives the page
+    at all, they're bounced straight back to the landing page with a
+    marker that auto-opens the Clerk sign-in modal and returns them
+    here afterward. This is on top of, not instead of, the bearer-token
+    check every real API call underneath still enforces
+    (app.utils.auth.require_user) -- belt and suspenders, not either/or.
     """
+    if get_session_role(request) == "anonymous":
+        return RedirectResponse(url="/?signin=1&redirect_url=/app")
     response = templates.TemplateResponse(
         request,
         "app.html",

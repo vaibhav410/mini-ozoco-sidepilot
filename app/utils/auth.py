@@ -97,16 +97,23 @@ def _resolve_email(user_id: str) -> str | None:
     return email
 
 
-def _is_admin_session(request: Request) -> bool:
-    """Whether the request carries a signed-in session for ADMIN_EMAIL."""
-    if not (settings.clerk_secret_key and settings.admin_email):
-        return False
+def get_session_role(request: Request) -> str:
+    """The request's role from its Clerk session alone: "admin", "user",
+    or "anonymous". Never raises -- used for page-route gating and the
+    post-login redirect decision, where a 401/403 exception would be
+    the wrong shape (a page route wants to redirect, not error).
+    """
+    if not settings.clerk_secret_key:
+        return "anonymous"
     state = _auth_state(request)
     if not state.is_signed_in:
-        return False
-    payload = state.payload or {}
-    email = payload.get("email") or _resolve_email(payload.get("sub", ""))
-    return bool(email) and email.lower() == settings.admin_email.lower()
+        return "anonymous"
+    if settings.admin_email:
+        payload = state.payload or {}
+        email = payload.get("email") or _resolve_email(payload.get("sub", ""))
+        if email and email.lower() == settings.admin_email.lower():
+            return "admin"
+    return "user"
 
 
 def require_admin_any(
@@ -118,13 +125,18 @@ def require_admin_any(
     """FastAPI dependency: ADMIN_TOKEN (any header/query form) OR a
     signed-in Clerk session for ADMIN_EMAIL.
 
+    Distinguishes *not authenticated* from *authenticated but not
+    admin* -- callers (and the admin page's own redirect logic) rely on
+    401 vs. 403 to tell a logged-out visitor from a logged-in non-admin.
+
     Fails closed: if neither mechanism is configured, every request is
     rejected rather than admitted -- this is a change from the old
     token-only checker, which allowed everyone through when
     ``ADMIN_TOKEN`` was left unset.
 
     Raises:
-        HTTPException: 401 if neither check passes.
+        HTTPException: 503 if neither mechanism is configured; 401 if
+        not signed in at all; 403 if signed in but not the admin.
     """
     if settings.admin_token:
         supplied = (
@@ -134,6 +146,14 @@ def require_admin_any(
         )
         if supplied == settings.admin_token:
             return
-    if _is_admin_session(request):
-        return
-    raise HTTPException(status_code=401, detail="Admin authorization required.")
+
+    if not (settings.clerk_secret_key and settings.admin_email):
+        raise HTTPException(
+            status_code=503, detail="Admin authorization is not configured."
+        )
+
+    role = get_session_role(request)
+    if role == "anonymous":
+        raise HTTPException(status_code=401, detail="Sign in required.")
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")

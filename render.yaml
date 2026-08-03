@@ -39,4 +39,12 @@ services:
       - key: DATABASE_URL
         sync: false # optional -- hosted Postgres URL for real persistence
       - key: ADMIN_TOKEN
-        sync: false # optional -- protects /admin* once the app is public
+        sync: false # optional -- non-browser fallback for /admin* (curl/API)
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false # secret -- Clerk Dashboard -> API Keys (safe to embed, but set here so it's templated into the pages)
+      - key: CLERK_SECRET_KEY
+        sync: false # secret -- Clerk Dashboard -> API Keys; verifies sessions server-side
+      - key: ADMIN_EMAIL
+        sync: false # secret -- the one account that reaches /admin after signing in
+      - key: CLERK_AUTHORIZED_PARTIES
+        sync: false # secret -- set to this service's https://*.onrender.com URL (or custom domain) once known

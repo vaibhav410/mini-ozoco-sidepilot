@@ -4,13 +4,14 @@ import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.integrations.filesystem import list_exports
 from app.rag.vector_store import vector_store_manager
 from app.services.memory_service import memory
-from app.utils.auth import require_admin_any
+from app.utils.auth import get_session_role, require_admin_any
 from app.utils.logger import get_logger
 from app.utils.metrics import metrics
 
@@ -23,18 +24,26 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/admin", include_in_schema=False)
-def admin_page(request: Request):
-    """Serve the admin dashboard shell.
+def admin_page(request: Request, token: str = ""):
+    """Serve the admin dashboard shell -- ADMIN_EMAIL only.
 
-    Not gated server-side by Clerk session (a plain navigation carries
-    no reliable cookie proof across Clerk's frontend-api domain -- see
-    the identical note on GET /app). The page always renders; its own
-    script calls /admin/stats with the Clerk bearer token and redirects
-    to "/" on a 401, so the real check runs against the same
-    require_admin_any dependency the API itself enforces. The
-    ?token=<ADMIN_TOKEN> query path is unaffected and keeps working for
-    non-browser access.
+    Gated server-side by the Clerk session cookie: a signed-out visitor
+    is bounced to the landing page's sign-in flow, and a signed-in
+    non-admin is forwarded to "/app" rather than ever seeing the
+    dashboard shell -- this dashboard is never exposed to regular
+    users, matching the same 401-vs-403 distinction require_admin_any
+    enforces on the /admin/stats API underneath. The historical
+    ?token=<ADMIN_TOKEN> query path is unaffected, for non-browser
+    access without a Clerk session at all.
     """
+    if settings.admin_token and token and token == settings.admin_token:
+        pass
+    else:
+        role = get_session_role(request)
+        if role == "anonymous":
+            return RedirectResponse(url="/?signin=1&redirect_url=/admin")
+        if role != "admin":
+            return RedirectResponse(url="/app")
     response = templates.TemplateResponse(
         request,
         "admin.html",

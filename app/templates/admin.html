@@ -112,15 +112,20 @@ async function adminFetch(path) {
 async function refresh() {
   try {
     const r = await adminFetch("/admin/stats");
-    if (r.status === 401) {
-      if (!adminToken) {
-        // No token fallback in play: this is a real "not the admin"
-        // verdict from require_admin_any (the same check the API
-        // enforces), not a cookie/page-gate guess -- safe to bounce.
-        document.getElementById("refreshed").textContent = "not authorized — redirecting…";
-        setTimeout(() => { location.href = "/"; }, 1200);
-      } else {
+    if (r.status === 401 || r.status === 403) {
+      if (adminToken) {
         document.getElementById("refreshed").textContent = "unauthorized — the ?token= value doesn't match ADMIN_TOKEN";
+      } else if (r.status === 403) {
+        // Signed in, but not the admin -- require_admin_any's 403.
+        // The page route itself now blocks this case before the shell
+        // ever renders; this only fires if a session loses admin
+        // status after the page already loaded.
+        document.getElementById("refreshed").textContent = "not authorized — redirecting…";
+        setTimeout(() => { location.href = "/app"; }, 1200);
+      } else {
+        // 401: no session at all (e.g. it expired while this tab was open).
+        document.getElementById("refreshed").textContent = "sign-in required — redirecting…";
+        setTimeout(() => { location.href = "/"; }, 1200);
       }
       return;
     }
