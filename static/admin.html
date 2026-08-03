@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SidePilot Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#000; --surface:#0a0a0a; --surface-2:#141414;
@@ -19,21 +19,33 @@
     font-family:"Geist",sans-serif; background:var(--bg); color:var(--text);
     -webkit-font-smoothing:antialiased; min-height:100vh; letter-spacing:-.01em;
   }
-  .top { display:flex; align-items:center; gap:10px; padding:14px 22px; border-bottom:1px solid var(--border); }
+  .top { display:flex; align-items:center; gap:10px; padding:14px 22px; border-bottom:1px solid var(--border); background:rgba(0,0,0,.8); backdrop-filter:blur(12px); position:sticky; top:0; z-index:10; }
   .badge-o { width:26px; height:26px; border-radius:8px; background:#fff; color:#000; display:grid; place-items:center; font-weight:800; font-size:13px; }
-  .top h1 { font-size:15px; font-weight:700; }
+  .top h1 { font-size:15.5px; font-weight:800; letter-spacing:-.02em; }
   .top .sub { color:var(--text-3); font-size:12px; margin-left:4px; }
-  .top a { margin-left:auto; color:var(--text-2); font-size:13px; text-decoration:none; padding:6px 12px; border:1px solid var(--border); border-radius:8px; }
+  .top a { margin-left:auto; color:var(--text-2); font-size:13px; text-decoration:none; padding:6px 12px; border:1px solid var(--border); border-radius:8px; transition:all .15s; }
   .top a:hover { color:var(--text); background:var(--surface-2); }
   .live { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--green); }
   .live .dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
   @keyframes pulse { 50% { opacity:.4; } }
-  .wrap { max-width:1100px; margin:0 auto; padding:22px; }
+
+  /* ---------- Dashboard hero header (matches the main app's hero language) ---------- */
+  .dash-hero { padding: 40px 22px 8px; max-width:1100px; margin:0 auto; }
+  .dash-badge {
+    display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:500; color:var(--blue);
+    background:var(--surface-2); border:1px solid var(--border-2); border-radius:99px; padding:5px 13px 5px 10px; margin-bottom:14px;
+  }
+  .dash-badge svg { color:var(--purple); }
+  .dash-hero h2 { font-size:clamp(24px,3.6vw,34px); font-weight:900; letter-spacing:-.03em; margin-bottom:8px; }
+  .dash-hero p { color:var(--text-2); font-size:14px; max-width:560px; line-height:1.6; }
+
+  .wrap { max-width:1100px; margin:0 auto; padding:8px 22px 22px; }
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-bottom:22px; }
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
-  .card .label { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
-  .card .big { font-size:26px; font-weight:700; letter-spacing:-.03em; }
-  .card .sub { font-size:12px; color:var(--text-2); margin-top:4px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px; transition:border-color .15s, transform .15s; }
+  .card:hover { border-color:var(--border-2); transform:translateY(-1px); }
+  .card .label { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:9px; }
+  .card .big { font-size:28px; font-weight:800; letter-spacing:-.03em; }
+  .card .sub { font-size:12px; color:var(--text-2); margin-top:5px; }
   .section { margin-bottom:22px; }
   .section h2 { font-size:13px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin-bottom:10px; }
   table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
@@ -57,6 +69,14 @@
   <h1>SidePilot Admin</h1><span class="sub">live system monitor</span>
   <span class="live" style="margin-left:14px"><span class="dot"></span><span id="refreshed">loading…</span></span>
   <a href="/">← Back to app</a>
+</div>
+<div class="dash-hero">
+  <span class="dash-badge">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.8L20 9l-6.2 1.2L12 16l-1.8-5.8L4 9l6.2-1.2z"/></svg>
+    Auto-refreshing every 5s
+  </span>
+  <h2>System Overview</h2>
+  <p>Live health, pipeline timing and memory across every agent and endpoint — pulled straight from the running process, no sampling.</p>
 </div>
 <div class="wrap">
   <div class="grid" id="cards"></div>
