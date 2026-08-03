@@ -12,7 +12,7 @@ Built for the internship program at **OZOCO Global Pvt Ltd**.
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Persistent%20Memory-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-> ** Live demo:** https://ozoco-sidepilot.onrender.com — *free tier: after 15 min idle the first visit takes ~1 minute to wake up.*
+> ** Live demo:**ozoco-sidepilot.vercel.app/*
 > ** Repository:** https://github.com/vaibhav410/mini-ozoco-sidepilot
 
 ---
