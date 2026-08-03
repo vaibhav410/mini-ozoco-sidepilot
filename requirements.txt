@@ -31,3 +31,7 @@ psycopg2-binary  # PostgreSQL driver; SQLite fallback needs nothing
 
 # --- Observability / admin ---
 psutil
+
+# --- Authentication (Clerk) ---
+clerk-backend-api
+jinja2

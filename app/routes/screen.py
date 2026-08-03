@@ -1,16 +1,17 @@
 """POST /screen/analyze -- screen understanding endpoint (HTTP layer only)."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.schemas import ScreenAnalyzeResponse
 from app.services.screen_service import analyze_screenshot
+from app.utils.auth import require_user
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Screen Understanding"])
+router = APIRouter(tags=["Screen Understanding"], dependencies=[Depends(require_user)])
 
 
 @router.post(

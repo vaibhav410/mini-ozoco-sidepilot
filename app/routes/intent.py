@@ -1,16 +1,17 @@
 """POST /intent/detect -- intent detection endpoint (HTTP layer only)."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from app.agents.intent_agent import get_intent_agent
 from app.models.schemas import IntentDetectRequest, IntentInfo
 from app.rag.vector_store import vector_store_manager
+from app.utils.auth import require_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Intent"])
+router = APIRouter(tags=["Intent"], dependencies=[Depends(require_user)])
 
 
 @router.post(

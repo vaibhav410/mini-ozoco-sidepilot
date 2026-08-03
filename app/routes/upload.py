@@ -11,9 +11,9 @@ from app.models.schemas import (
 )
 from app.rag.vector_store import vector_store_manager
 from app.services.document_service import process_upload, remove_document
+from app.utils.auth import require_admin_any, require_user
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
-from app.utils.security import require_admin
 
 logger = get_logger(__name__)
 
@@ -26,8 +26,10 @@ router = APIRouter(tags=["Documents"])
     summary="Upload a PDF/TXT document",
     description=(
         "Uploads one document, runs Agent 1 (classification + summary), "
-        "chunks and indexes it into the FAISS vector store."
+        "chunks and indexes it into the FAISS vector store. Requires a "
+        "signed-in account."
     ),
+    dependencies=[Depends(require_user)],
 )
 async def upload_document(file: UploadFile = File(...)) -> UploadResponse:
     """Handle a document upload request.
@@ -52,7 +54,9 @@ async def upload_document(file: UploadFile = File(...)) -> UploadResponse:
     response_model=DocumentsResponse,
     summary="List all indexed documents",
     description="Returns every document in the vector store with the "
-    "category and summary produced by Agent 1.",
+    "category and summary produced by Agent 1. Requires a signed-in "
+    "account.",
+    dependencies=[Depends(require_user)],
 )
 def list_documents() -> DocumentsResponse:
     """Expose the document registry built by Agent 1."""
@@ -76,8 +80,8 @@ def list_documents() -> DocumentsResponse:
     summary="Remove a document from the index",
     description="Deletes the document's chunks from FAISS, its registry "
     "entry, and the saved file -- so its content can no longer influence "
-    "answers or drafts. Requires ADMIN_TOKEN when one is configured.",
-    dependencies=[Depends(require_admin)],
+    "answers or drafts. Requires ADMIN_TOKEN or a signed-in admin session.",
+    dependencies=[Depends(require_admin_any)],
 )
 def delete_document(doc_id: str) -> DeleteDocumentResponse:
     """Handle a document removal request."""

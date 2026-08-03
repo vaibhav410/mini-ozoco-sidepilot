@@ -3,33 +3,45 @@
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, Request
+from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.integrations.filesystem import list_exports
 from app.rag.vector_store import vector_store_manager
 from app.services.memory_service import memory
+from app.utils.auth import require_admin_any
 from app.utils.logger import get_logger
 from app.utils.metrics import metrics
-from app.utils.security import require_admin
 
 logger = get_logger(__name__)
 
-# When ADMIN_TOKEN is configured, the whole admin surface requires it;
-# when it is empty the dependency is a no-op (open local demo).
-router = APIRouter(tags=["Admin"], dependencies=[Depends(require_admin)])
+router = APIRouter(tags=["Admin"])
 
-STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
+TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/admin", include_in_schema=False)
-def admin_page() -> FileResponse:
-    """Serve the admin dashboard page."""
-    return FileResponse(
-        STATIC_DIR / "admin.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+def admin_page(request: Request):
+    """Serve the admin dashboard shell.
+
+    Not gated server-side by Clerk session (a plain navigation carries
+    no reliable cookie proof across Clerk's frontend-api domain -- see
+    the identical note on GET /app). The page always renders; its own
+    script calls /admin/stats with the Clerk bearer token and redirects
+    to "/" on a 401, so the real check runs against the same
+    require_admin_any dependency the API itself enforces. The
+    ?token=<ADMIN_TOKEN> query path is unaffected and keeps working for
+    non-browser access.
+    """
+    response = templates.TemplateResponse(
+        request,
+        "admin.html",
+        {"clerk_publishable_key": settings.clerk_publishable_key},
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @router.get(
@@ -39,8 +51,10 @@ def admin_page() -> FileResponse:
         "Everything the monitoring dashboard shows: process health and "
         "memory usage, model configuration, indexed documents, "
         "persistent-memory counts, per-stage pipeline timings, and "
-        "per-endpoint HTTP timings."
+        "per-endpoint HTTP timings. Requires ADMIN_TOKEN or a signed-in "
+        "admin session."
     ),
+    dependencies=[Depends(require_admin_any)],
 )
 def admin_stats() -> dict:
     """Aggregate live statistics from every subsystem."""

@@ -10,7 +10,8 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.models.schemas import HealthResponse
@@ -26,7 +27,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @asynccontextmanager
@@ -169,13 +171,34 @@ def health() -> HealthResponse:
 
 
 @app.get("/", include_in_schema=False)
-def serve_ui() -> FileResponse:
-    """Serve the single-page web UI.
-
-    No-cache headers ensure browsers always load the latest UI after a
-    redeploy instead of showing a stale cached version.
-    """
-    return FileResponse(
-        STATIC_DIR / "index.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+def serve_landing(request: Request):
+    """Serve the public marketing/landing page (no login required)."""
+    response = templates.TemplateResponse(
+        request,
+        "landing.html",
+        {"clerk_publishable_key": settings.clerk_publishable_key},
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@app.get("/app", include_in_schema=False)
+def serve_app(request: Request):
+    """Serve the SidePilot chat app shell.
+
+    Not gated server-side: Clerk's session lives behind its own
+    frontend-api domain, so a plain page navigation carries no
+    reliable proof of sign-in for this server to check by cookie. The
+    page's own script redirects to "/" the moment it confirms (via the
+    Clerk client, not a cookie) that no session is active, and every
+    real API call underneath requires a verified bearer token
+    (app.utils.auth.require_user) regardless of what the page shows --
+    that dependency, not this route, is the actual security boundary.
+    """
+    response = templates.TemplateResponse(
+        request,
+        "app.html",
+        {"clerk_publishable_key": settings.clerk_publishable_key},
+    )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response

@@ -78,6 +78,27 @@ class Settings:
     rate_limit_requests: int = int(os.getenv("RATE_LIMIT_REQUESTS", "40"))
     rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 
+    # --- Authentication (Clerk) ---
+    # Publishable key is safe to embed in frontend HTML/JS. Secret key
+    # verifies session tokens server-side and must never reach the
+    # browser. Both optional (falling back to NEXT_PUBLIC_-prefixed
+    # names some Clerk quickstarts generate) -- when either is empty,
+    # /app and /admin fail closed with a clear "not configured" error
+    # rather than silently letting every request through.
+    clerk_publishable_key: str = os.getenv("CLERK_PUBLISHABLE_KEY") or os.getenv(
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", ""
+    )
+    clerk_secret_key: str = os.getenv("CLERK_SECRET_KEY", "")
+    # The one account (by email) treated as admin -- gates /admin.
+    admin_email: str = os.getenv("ADMIN_EMAIL", "")
+    # Optional: restrict accepted session tokens to these origins
+    # (Clerk's `azp` claim). Comma-separated; unset skips the check.
+    clerk_authorized_parties: tuple[str, ...] = tuple(
+        p.strip()
+        for p in os.getenv("CLERK_AUTHORIZED_PARTIES", "").split(",")
+        if p.strip()
+    )
+
     # --- Speech (voice input) ---
     # Groq-hosted Whisper model for /speech/transcribe.
     speech_model: str = os.getenv("SPEECH_MODEL", "whisper-large-v3-turbo")

@@ -1,16 +1,17 @@
 """POST /speech/transcribe -- voice input endpoint (HTTP layer only)."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.schemas import TranscribeResponse
 from app.services.speech_service import transcribe_audio
+from app.utils.auth import require_user
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Speech"])
+router = APIRouter(tags=["Speech"], dependencies=[Depends(require_user)])
 
 
 @router.post(

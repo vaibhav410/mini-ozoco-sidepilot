@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>OZOCO SidePilot — Understand faster. Automate smarter.</title>
+<meta name="description" content="An AI SidePilot that understands your documents and screen, then automates the busywork -- six agents, one workflow.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M22 14h14l8 8v22a3 3 0 0 1-3 3H22a3 3 0 0 1-3-3V17a3 3 0 0 1 3-3z' fill='none' stroke='white' stroke-width='3.5' stroke-linejoin='round'/%3E%3Cpath d='M36 14v8h8' fill='none' stroke='white' stroke-width='3.5' stroke-linejoin='round'/%3E%3Ccircle cx='30' cy='33' r='5' fill='none' stroke='white' stroke-width='3'/%3E%3Cpath d='m34 37 5 5' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% include "_clerk.html" %}
+<style>
+  :root {
+    --bg: #000000; --surface: #0a0a0a; --surface-2: #141414; --surface-3: #1f1f1f;
+    --border: rgba(255,255,255,.09); --border-2: rgba(255,255,255,.16);
+    --text: #ededed; --text-2: #a1a1a1; --text-3: #666;
+    --white: #fff;
+    --green: #45d483; --amber: #f5a623; --red: #ff5b56;
+    --blue: #52a9ff; --blue-dim: rgba(82,169,255,.1);
+    --purple: #bf7af0; --purple-dim: rgba(191,122,240,.1);
+    --content-width: 880px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Geist", "Inter", -apple-system, sans-serif;
+    letter-spacing: -0.01em; background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, a { font-family: inherit; cursor: pointer; }
+  svg { flex-shrink: 0; }
+  section { padding: 88px 20px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  /* ---------- Navbar ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; gap: 18px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,.75); backdrop-filter: blur(12px);
+  }
+  .nav .brand { font-weight: 800; font-size: 15.5px; letter-spacing: -.02em; }
+  .nav-links { display: flex; gap: 22px; margin-left: 28px; }
+  .nav-links a { color: var(--text-2); font-size: 13.5px; font-weight: 500; text-decoration: none; transition: color .15s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav .spacer { flex: 1; }
+  .nav-btn {
+    font-size: 13px; font-weight: 600; color: var(--text-2);
+    padding: 7px 15px; border-radius: 8px; border: 1px solid transparent;
+    background: none; transition: all .15s; white-space: nowrap;
+  }
+  .nav-btn:hover { color: var(--text); background: var(--surface-2); }
+  .nav-btn.primary { background: var(--white); color: #000; }
+  .nav-btn.primary:hover { background: #d9d9d9; }
+
+  /* ---------- Hero ---------- */
+  .hero { text-align: center; padding: 96px 20px 40px; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 500; color: var(--blue);
+    background: var(--surface-2); border: 1px solid var(--border-2);
+    border-radius: 99px; padding: 6px 14px 6px 11px; margin-bottom: 24px;
+  }
+  .hero-badge svg { color: var(--purple); }
+  .hero-title {
+    font-size: clamp(36px, 7vw, 60px); font-weight: 900;
+    letter-spacing: -.04em; line-height: 1.04; margin-bottom: 20px;
+  }
+  .hero-title span { display: block; }
+  .hero-title .line-1 { color: var(--white); }
+  .hero-title .line-2 { color: var(--text-3); }
+  .hero-sub { color: var(--text-2); font-size: 16px; max-width: 560px; margin: 0 auto 34px; line-height: 1.65; }
+  .hero-cta-row { display: flex; align-items: center; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 40px; }
+
+  @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  @keyframes spin-rim { to { --angle: 360deg; } }
+  .cta-glow {
+    --angle: 0deg;
+    position: relative; display: inline-flex; border-radius: 99px; padding: 1.5px;
+    background: conic-gradient(from var(--angle), #ff5b56, #52a9ff, #bf7af0, #45d483, #ff5b56);
+    animation: spin-rim 5s linear infinite;
+    box-shadow: 0 0 24px rgba(82,169,255,.18);
+  }
+  .cta-glow > span {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: #0d0d0d; color: var(--white); font-weight: 700; font-size: 15px;
+    padding: 15px 28px; border-radius: 99px; transition: background .15s;
+  }
+  .cta-glow:hover > span { background: #171717; }
+  .cta-secondary {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14.5px; font-weight: 500; color: var(--text-2); background: none; border: none;
+    transition: color .15s;
+  }
+  .cta-secondary:hover { color: var(--text); }
+  .cta-secondary svg { transition: transform .15s; }
+  .cta-secondary:hover svg { transform: translateY(2px); }
+
+  .hero-trust { display: inline-flex; align-items: center; gap: 11px; font-size: 12.5px; color: var(--text-2); }
+  .agent-dots { display: inline-flex; }
+  .agent-dots i { width: 22px; height: 22px; border-radius: 50%; display: block; border: 2px solid var(--bg); margin-left: -7px; flex-shrink: 0; }
+  .agent-dots i:first-child { margin-left: 0; }
+  .hero-trust b { color: var(--text); font-weight: 600; }
+
+  /* ---------- Built-with strip (honest -- real tech, not fake customers) ---------- */
+  .built-with { padding: 44px 20px 20px; text-align: center; }
+  .built-with .label { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); margin-bottom: 26px; }
+  .tech-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 760px; margin: 0 auto; }
+  .tech-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 500; color: var(--text-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 9px 16px;
+    background: var(--surface); transition: all .15s;
+  }
+  .tech-chip:hover { border-color: var(--border-2); color: var(--text); }
+  .tech-chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ---------- Feature grid ---------- */
+  .section-head { text-align: center; margin-bottom: 48px; }
+  .section-head h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; letter-spacing: -.03em; margin-bottom: 12px; }
+  .section-head p { color: var(--text-2); font-size: 15px; max-width: 560px; margin: 0 auto; line-height: 1.6; }
+
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; transition: all .2s;
+  }
+  .feature-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
+  .feature-card .icon {
+    width: 38px; height: 38px; border-radius: 10px; background: var(--surface-2);
+    display: grid; place-items: center; color: var(--text); margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 8px; letter-spacing: -.01em; }
+  .feature-card p { font-size: 13.5px; color: var(--text-2); line-height: 1.6; }
+  .feature-card .stat-row { display: flex; gap: 18px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .feature-card .stat b { display: block; font-size: 17px; font-weight: 800; }
+  .feature-card .stat span { font-size: 11px; color: var(--text-3); }
+  .feature-card .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .feature-card .pill { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+  .feature-card.wide { grid-column: span 2; }
+  .mini-wf { display: flex; align-items: center; gap: 4px; margin-top: 16px; flex-wrap: wrap; }
+  .mini-wf span { font-size: 10.5px; font-weight: 600; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+  .mini-wf i { color: var(--text-3); font-size: 11px; }
+
+  /* ---------- Final CTA ---------- */
+  .final-cta { text-align: center; border-top: 1px solid var(--border); }
+  .final-cta h2 { font-size: clamp(28px, 5vw, 42px); font-weight: 900; letter-spacing: -.03em; margin-bottom: 16px; }
+  .final-cta p { color: var(--text-2); font-size: 15px; margin-bottom: 32px; }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--border); padding: 32px 20px; }
+  .footer-row { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .footer-row .brand { font-weight: 700; font-size: 13.5px; }
+  .footer-links { display: flex; gap: 20px; }
+  .footer-links a { color: var(--text-2); font-size: 13px; text-decoration: none; }
+  .footer-links a:hover { color: var(--text); }
+  .footer-copy { color: var(--text-3); font-size: 12px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface-3); border: 1px solid var(--border-2); color: var(--text);
+    font-size: 13px; padding: 10px 18px; border-radius: 10px; z-index: 90;
+    box-shadow: 0 10px 40px rgba(0,0,0,.6); max-width: 90vw;
+  }
+
+  @media (max-width: 760px) {
+    .nav-links { display: none; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .feature-card.wide { grid-column: span 1; }
+    section { padding: 56px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="brand">OZOCO SidePilot</span>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="https://github.com/vaibhav410/mini-ozoco-sidepilot" target="_blank" rel="noopener">GitHub</a>
+  </div>
+  <div class="spacer"></div>
+  <button class="nav-btn" id="navSignIn">Sign In</button>
+  <button class="nav-btn primary" id="navStart">Start Chatting</button>
+</nav>
+
+<section class="hero">
+  <span class="hero-badge">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.8L20 9l-6.2 1.2L12 16l-1.8-5.8L4 9l6.2-1.2z"/></svg>
+    6 AI Agents · Live Pipeline
+  </span>
+  <h1 class="hero-title"><span class="line-1">Understand faster.</span><span class="line-2">Automate smarter.</span></h1>
+  <p class="hero-sub">An AI SidePilot that reads your documents and your screen, answers with validated, source-backed responses, and automates the follow-up work — email drafts, exports, action plans.</p>
+  <div class="hero-cta-row">
+    <button type="button" class="cta-glow" id="heroStart"><span>Start Chatting
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </span></button>
+    <a href="#how-it-works" class="cta-secondary">See how it works
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </a>
+  </div>
+  <div class="hero-trust">
+    <span class="agent-dots"><i style="background:var(--green)"></i><i style="background:var(--blue)"></i><i style="background:var(--purple)"></i><i style="background:var(--amber)"></i><i style="background:var(--red)"></i><i style="background:#fff"></i></span>
+    <span><b id="heroDocCount">0</b> documents indexed right now · every answer validated by Agent 3</span>
+  </div>
+</section>
+
+<div class="built-with">
+  <div class="label">Built with</div>
+  <div class="tech-row">
+    <span class="tech-chip"><i class="dot" style="background:#009688"></i>FastAPI</span>
+    <span class="tech-chip"><i class="dot" style="background:#4285F4"></i>Google Gemini</span>
+    <span class="tech-chip"><i class="dot" style="background:#0467DF"></i>FAISS</span>
+    <span class="tech-chip"><i class="dot" style="background:#4169E1"></i>PostgreSQL</span>
+    <span class="tech-chip"><i class="dot" style="background:#1C3C3C"></i>LangChain</span>
+    <span class="tech-chip"><i class="dot" style="background:#2496ED"></i>Docker</span>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Everything SidePilot can do</h2>
+      <p>Six specialized agents, one workflow engine, real automation — not a chatbot wrapper.</p>
+    </div>
+    <div class="feature-grid">
+
+      <div class="feature-card wide">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3>Workflow Engine</h3>
+        <p>Every request travels the same five-stage pipeline — independently timed, logged and traceable, with each stage replaceable without touching the rest.</p>
+        <div class="mini-wf">
+          <span>Observe</span><i>→</i><span>Understand</span><i>→</i><span>Analyze</span><i>→</i><span>Guide</span><i>→</i><span>Automate</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <h3>Screen Understanding</h3>
+        <p>Drop in a screenshot — Gemini Vision reads the application, the on-screen text, and what you're likely trying to do.</p>
+        <div class="pill-row"><span class="pill">Vision</span><span class="pill">OCR fallback</span></div>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Automation Agent</h3>
+        <p>"Draft an email" or "export a summary" doesn't just answer — it produces a real .eml draft or a downloadable PDF.</p>
+        <div class="pill-row"><span class="pill">Gmail</span><span class="pill">PDF / MD export</span></div>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+        <h3>Real-Time Streaming</h3>
+        <p>Answers stream token by token over SSE, with live pipeline progress and a stop button — not a spinner and a wait.</p>
+      </div>
+
+      <div class="feature-card wide">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+        <h3>Grounded, Validated Answers</h3>
+        <p>Every answer is generated strictly from retrieved document content and independently fact-checked by a validation agent before it reaches you — unsupported claims are withheld, not guessed.</p>
+        <div class="stat-row">
+          <div class="stat"><b>3</b><span>agents per answer</span></div>
+          <div class="stat"><b>100%</b><span>source-cited</span></div>
+          <div class="stat"><b>0</b><span>unverified claims shown</span></div>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></div>
+        <h3>Voice In, Voice Out</h3>
+        <p>Speak your question — Whisper transcribes it in any browser — and have answers read back to you.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+        <h3>Persistent Memory</h3>
+        <p>Sessions, chats, detected intents and executed actions survive a restart — PostgreSQL in production, SQLite locally.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="how-it-works">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>How it works</h2>
+      <p>One pipeline, every request — the same five stages you'll see traced live inside the app.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card"><div class="icon">1</div><h3>Observe</h3><p>Gathers context: your documents, chat history, and anything on screen you've shared.</p></div>
+      <div class="feature-card"><div class="icon">2</div><h3>Understand</h3><p>Resolves follow-ups and classifies what you actually want — a question, a summary, an email, an export.</p></div>
+      <div class="feature-card"><div class="icon">3</div><h3>Analyze</h3><p>Routes to the right document and retrieves the exact passages that matter.</p></div>
+      <div class="feature-card"><div class="icon">4</div><h3>Guide</h3><p>Generates a grounded answer, then a second agent independently validates every claim in it.</p></div>
+      <div class="feature-card"><div class="icon">5</div><h3>Automate</h3><p>For action requests, executes it directly — a real draft, a real file, ready to download.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Ready to get started?</h2>
+    <p>Sign in and upload your first document — free, no credit card.</p>
+    <button type="button" class="cta-glow" id="finalStart"><span>Start Chatting
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </span></button>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-row">
+    <span class="brand">OZOCO SidePilot</span>
+    <div class="footer-links">
+      <a href="/docs" target="_blank">API Docs</a>
+      <a href="https://github.com/vaibhav410/mini-ozoco-sidepilot" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <span class="footer-copy">Built for the OZOCO internship program.</span>
+  </div>
+</footer>
+
+<script>
+"use strict";
+function toast(message) {
+  document.querySelectorAll(".toast").forEach((t) => t.remove());
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+async function goToApp() {
+  const clerk = await clerkReady();
+  if (!clerk) { toast("Sign-in is not configured yet."); return; }
+  if (clerk.session) { location.href = "/app"; return; }
+  clerk.openSignIn();
+}
+
+["navStart", "heroStart", "finalStart"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.onclick = goToApp;
+});
+document.getElementById("navSignIn").onclick = goToApp;
+
+/* Live document count for the trust row -- real data, not a fake stat. */
+fetch("/health").then((r) => r.json()).then((j) => {
+  const el = document.getElementById("heroDocCount");
+  if (el) el.textContent = j.documents_indexed;
+}).catch(() => {});
+
+/* Once signed in (including mid-session via the sign-in modal),
+   move straight into the app. */
+(async () => {
+  const clerk = await clerkReady();
+  if (!clerk) return;
+  if (clerk.session) {
+    document.getElementById("navSignIn").textContent = "Sign In";
+    document.getElementById("navStart").textContent = "Go to App";
+  }
+  clerk.addListener((payload) => {
+    if (payload && payload.session) location.href = "/app";
+  });
+})();
+</script>
+</body>
+</html>

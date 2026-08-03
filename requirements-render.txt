@@ -30,3 +30,7 @@ psycopg2-binary
 
 # Observability / admin
 psutil
+
+# Authentication (Clerk)
+clerk-backend-api
+jinja2

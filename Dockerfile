@@ -19,7 +19,6 @@ COPY requirements-render.txt .
 RUN pip install --no-cache-dir -r requirements-render.txt
 
 COPY app ./app
-COPY static ./static
 COPY samples ./samples
 
 # Run as a non-root user; writable dirs owned by it.

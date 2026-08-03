@@ -1,0 +1,41 @@
+<script>
+"use strict";
+/* Clerk vanilla-JS bootstrap, shared by every page that needs auth.
+   The frontend API host is derived from the publishable key itself
+   (safe to embed -- publishable keys are meant for the browser) so
+   nothing about the Clerk instance is hardcoded here. */
+(function () {
+  var pk = {{ clerk_publishable_key|tojson }};
+  if (!pk) { window.__clerkReady = Promise.resolve(null); return; }
+  var payload = pk.replace(/^pk_(test|live)_/, "");
+  var frontendApi;
+  try { frontendApi = atob(payload).replace(/\$+$/, ""); }
+  catch (e) { window.__clerkReady = Promise.resolve(null); return; }
+  var s = document.createElement("script");
+  s.async = true;
+  s.crossOrigin = "anonymous";
+  s.setAttribute("data-clerk-publishable-key", pk);
+  s.src = "https://" + frontendApi + "/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
+  window.__clerkReady = new Promise(function (resolve) {
+    s.addEventListener("load", function () {
+      window.Clerk.load().then(function () { resolve(window.Clerk); })
+        .catch(function (e) { console.error("Clerk load failed", e); resolve(null); });
+    });
+    s.addEventListener("error", function () { resolve(null); });
+  });
+  document.head.appendChild(s);
+})();
+
+/** Resolve once Clerk has finished loading (null if unconfigured/failed). */
+async function clerkReady() { return window.__clerkReady; }
+
+/** {Authorization: "Bearer <token>"} for the live session, or {} if signed out. */
+async function authHeaders() {
+  var clerk = await clerkReady();
+  if (!clerk || !clerk.session) return {};
+  try {
+    var token = await clerk.session.getToken();
+    return token ? { "Authorization": "Bearer " + token } : {};
+  } catch (e) { return {}; }
+}
+</script>

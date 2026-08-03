@@ -6,6 +6,7 @@
 <title>SidePilot Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% include "_clerk.html" %}
 <style>
   :root {
     --bg:#000; --surface:#0a0a0a; --surface-2:#141414;
@@ -23,8 +24,9 @@
   .badge-o { width:26px; height:26px; border-radius:8px; background:#fff; color:#000; display:grid; place-items:center; font-weight:800; font-size:13px; }
   .top h1 { font-size:15.5px; font-weight:800; letter-spacing:-.02em; }
   .top .sub { color:var(--text-3); font-size:12px; margin-left:4px; }
-  .top a { margin-left:auto; color:var(--text-2); font-size:13px; text-decoration:none; padding:6px 12px; border:1px solid var(--border); border-radius:8px; transition:all .15s; }
-  .top a:hover { color:var(--text); background:var(--surface-2); }
+  .top a, .top button { margin-left:auto; color:var(--text-2); font-size:13px; text-decoration:none; padding:6px 12px; border:1px solid var(--border); border-radius:8px; transition:all .15s; background:none; font-family:inherit; cursor:pointer; }
+  .top a:hover, .top button:hover { color:var(--text); background:var(--surface-2); }
+  .top .signout { margin-left:8px; }
   .live { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--green); }
   .live .dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
   @keyframes pulse { 50% { opacity:.4; } }
@@ -68,7 +70,8 @@
   <span class="badge-o">O</span>
   <h1>SidePilot Admin</h1><span class="sub">live system monitor</span>
   <span class="live" style="margin-left:14px"><span class="dot"></span><span id="refreshed">loading…</span></span>
-  <a href="/">← Back to app</a>
+  <a href="/app">← Back to app</a>
+  <button class="signout" id="signOutBtn" style="display:none">Sign out</button>
 </div>
 <div class="dash-hero">
   <span class="dash-badge">
@@ -97,19 +100,28 @@ function card(label, big, sub) {
   return '<div class="card"><div class="label">'+label+'</div><div class="big">'+big+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';
 }
 /* If ADMIN_TOKEN is configured server-side, the dashboard was opened
-   as /admin?token=... -- forward it to every /admin/* call so the
-   page keeps working instead of showing 401s. */
+   as /admin?token=... -- forward it to every /admin/* call. Otherwise
+   the Clerk session bearer token (attached by authHeaders()) carries
+   the admin check. */
 const adminToken = new URLSearchParams(location.search).get("token") || "";
-function adminFetch(path) {
-  const url = adminToken ? path + "?token=" + encodeURIComponent(adminToken) : path;
-  return fetch(url);
+async function adminFetch(path) {
+  const url = adminToken ? path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(adminToken) : path;
+  return fetch(url, { headers: await authHeaders() });
 }
 
 async function refresh() {
   try {
     const r = await adminFetch("/admin/stats");
     if (r.status === 401) {
-      document.getElementById("refreshed").textContent = "unauthorized — open with ?token=<ADMIN_TOKEN>";
+      if (!adminToken) {
+        // No token fallback in play: this is a real "not the admin"
+        // verdict from require_admin_any (the same check the API
+        // enforces), not a cookie/page-gate guess -- safe to bounce.
+        document.getElementById("refreshed").textContent = "not authorized — redirecting…";
+        setTimeout(() => { location.href = "/"; }, 1200);
+      } else {
+        document.getElementById("refreshed").textContent = "unauthorized — the ?token= value doesn't match ADMIN_TOKEN";
+      }
       return;
     }
     const s = await r.json();
@@ -169,6 +181,17 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 5000);
+
+/* Show a Sign out button only when an actual Clerk session is active
+   (the ?token= path has no session to sign out of). */
+(async () => {
+  const clerk = await clerkReady();
+  if (clerk && clerk.session) {
+    const btn = document.getElementById("signOutBtn");
+    btn.style.display = "";
+    btn.onclick = async () => { await clerk.signOut(); location.href = "/"; };
+  }
+})();
 </script>
 </body>
 </html>

@@ -3,18 +3,21 @@
 import json
 import threading
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
 from app.models.schemas import AskRequest, AskResponse
 from app.services.chat_service import answer_question, stream_events
+from app.utils.auth import require_user
 from app.utils.errors import AppError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Chat"])
+# Every route here needs a signed-in account -- a public deployment
+# must not let anonymous requests spend Gemini/Groq quota.
+router = APIRouter(tags=["Chat"], dependencies=[Depends(require_user)])
 
 _STOP = object()
 

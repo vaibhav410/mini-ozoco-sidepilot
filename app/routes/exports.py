@@ -1,15 +1,16 @@
 """GET /exports -- generated file listing and downloads (HTTP layer only)."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from app.integrations.filesystem import list_exports, safe_export_path
 from app.models.schemas import ExportsResponse
+from app.utils.auth import require_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Exports"])
+router = APIRouter(tags=["Exports"], dependencies=[Depends(require_user)])
 
 
 @router.get(

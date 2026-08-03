@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% include "_clerk.html" %}
 <style>
   :root {
     --bg: #000000;
@@ -85,7 +86,7 @@
   /* ---------- Layout ---------- */
   .shell { flex: 1; display: flex; min-height: 0; }
 
-  /* ---------- Sidebar (mentor item #4) ---------- */
+  /* ---------- Sidebar ---------- */
   .sidebar {
     width: var(--sidebar-width); flex-shrink: 0;
     border-right: 1px solid var(--border);
@@ -137,12 +138,12 @@
   .all-docs-btn { font-size: 11px; color: var(--text-3); font-weight: 600; }
   .all-docs-btn:hover { color: var(--green); }
 
-  /* ---------- Main (mentor item #1: 880px content) ---------- */
+  /* ---------- Main ---------- */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .thread { flex: 1; overflow-y: auto; padding: 24px 20px 12px; }
   .thread-inner { max-width: var(--content-width); margin: 0 auto; }
 
-  /* ---------- Hero / empty state (premium landing-page treatment) ---------- */
+  /* ---------- Hero / empty state ---------- */
   .empty { text-align: center; padding: 6vh 16px 0; }
 
   .hero-badge {
@@ -165,9 +166,6 @@
 
   .hero-cta-row { display: flex; align-items: center; justify-content: center; gap: 22px; flex-wrap: wrap; margin-bottom: 30px; }
 
-  /* Primary CTA: animated conic-gradient rim, matching the reference's
-     chromatic-edge glow button. Degrades to a plain dark pill on
-     browsers without @property support -- still fully usable. */
   @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
   @keyframes spin-rim { to { --angle: 360deg; } }
   .cta-glow {
@@ -220,7 +218,7 @@
   }
   .suggest:hover { border-color: var(--border-2); color: var(--text); background: var(--surface-2); }
 
-  /* ---------- Messages (mentor item #2: bubbles) ---------- */
+  /* ---------- Messages ---------- */
   .msg { margin-bottom: 26px; animation: rise .25s ease; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .msg-user { display: flex; justify-content: flex-end; }
@@ -238,7 +236,7 @@
     color: #000; display: grid; place-items: center; font-size: 10px; font-weight: 800;
   }
 
-  /* ---------- Workflow strip (mentor items #3 + #10) ---------- */
+  /* ---------- Workflow strip ---------- */
   .wf-strip {
     display: flex; align-items: center;
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -285,7 +283,7 @@
   @keyframes blink { 0%,60%,100% { opacity: .25; } 30% { opacity: 1; } }
   .cursor { display: inline-block; width: 7px; height: 15px; background: var(--green); vertical-align: -2px; animation: blink 1s infinite; border-radius: 1px; }
 
-  /* ---------- Agent badges (mentor item #6) ---------- */
+  /* ---------- Agent badges ---------- */
   .badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
   .badge {
     display: inline-flex; align-items: center; gap: 6px;
@@ -298,7 +296,7 @@
   .badge.info { color: var(--blue); border-color: rgba(82,169,255,.3); background: var(--blue-dim); }
   .badge.purple { color: var(--purple); border-color: rgba(191,122,240,.3); background: var(--purple-dim); }
 
-  /* ---------- Source cards (mentor item #5) ---------- */
+  /* ---------- Source cards ---------- */
   .sources { margin-top: 14px; display: grid; gap: 8px; }
   .sources-label { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
   .source-card {
@@ -431,6 +429,7 @@
   <button class="nav-btn hide-sm" onclick="window.open('/docs','_blank')">API</button>
   <button class="nav-btn hide-sm" onclick="window.open('https://github.com/vaibhav410/mini-ozoco-sidepilot','_blank')">GitHub</button>
   <button class="nav-btn" id="ttsToggle" title="Speak answers aloud" aria-label="Toggle spoken answers" aria-pressed="false">🔇</button>
+  <button class="nav-btn hide-sm" id="signOutBtn" style="display:none">Sign out</button>
   <button class="nav-btn primary" id="newChat">New Chat</button>
 </nav>
 
@@ -534,6 +533,20 @@ const state = {
 const STAGES = ["observe", "understand", "analyze", "guide", "automate"];
 const STAGE_LABELS = { observe: "Observe", understand: "Understand", analyze: "Analyze", guide: "Guide", automate: "Automate" };
 
+/* ================= Auth-aware fetch ================= */
+/* authHeaders() comes from the shared _clerk.html include. Every call
+   to the FastAPI backend goes through this instead of raw fetch() so
+   the Clerk session bearer token is attached automatically; a 401
+   (session missing/expired) bounces back to the landing page to sign
+   in again rather than showing a broken app screen. */
+async function authFetch(url, options) {
+  options = options || {};
+  const headers = Object.assign({}, options.headers || {}, await authHeaders());
+  const response = await fetch(url, Object.assign({}, options, { headers }));
+  if (response.status === 401) { location.href = "/"; }
+  return response;
+}
+
 /* ================= Utilities ================= */
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -575,7 +588,7 @@ function scrollDown() { const t = $("thread"); t.scrollTop = t.scrollHeight; }
 /* ================= Health ================= */
 async function ping() {
   try {
-    const r = await fetch("/health");
+    const r = await fetch("/health"); // public endpoint, no auth needed
     const j = await r.json();
     $("statusDot").className = "status-dot ok";
     $("statusText").textContent = j.documents_indexed + " docs indexed";
@@ -591,7 +604,7 @@ ping(); setInterval(ping, 15000);
 /* ================= Documents sidebar ================= */
 async function loadDocs() {
   try {
-    const r = await fetch("/documents");
+    const r = await authFetch("/documents");
     const j = await r.json();
     state.docs = j.documents;
   } catch { state.docs = []; }
@@ -619,7 +632,7 @@ function renderDocs() {
       e.stopPropagation();
       if (!confirm("Remove " + d.filename + " from the index? Its content will no longer be used.")) return;
       try {
-        const r = await fetch("/documents/" + encodeURIComponent(d.doc_id), { method: "DELETE" });
+        const r = await authFetch("/documents/" + encodeURIComponent(d.doc_id), { method: "DELETE" });
         if (!r.ok) throw new Error((await r.json()).detail || "Delete failed");
         if (state.activeDocId === d.doc_id) state.activeDocId = null;
         toast("Removed " + d.filename);
@@ -655,7 +668,7 @@ async function uploadFile(file) {
   const form = new FormData();
   form.append("file", file);
   try {
-    const r = await fetch("/upload", { method: "POST", body: form });
+    const r = await authFetch("/upload", { method: "POST", body: form });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Upload failed");
     toast("Indexed " + j.filename + " — " + j.category + " (" + j.chunks_indexed + " chunks)");
@@ -700,7 +713,7 @@ async function analyzeScreen(file) {
   const form = new FormData();
   form.append("file", file);
   try {
-    const r = await fetch("/screen/analyze", { method: "POST", body: form });
+    const r = await authFetch("/screen/analyze", { method: "POST", body: form });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "Screen analysis failed");
     state.screenContext = j;
@@ -779,7 +792,7 @@ async function ask(question) {
   let answerText = "", finalData = null, errorData = null;
 
   try {
-    const r = await fetch("/ask/stream", {
+    const r = await authFetch("/ask/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: state.abort.signal,
@@ -857,7 +870,7 @@ function renderFinal(shell, r) {
   shell.answerEl.innerHTML = md(r.answer);
 
   let extras = "";
-  /* Agent badges (mentor item #6) */
+  /* Agent badges */
   const badges = [];
   badges.push('<span class="badge ok">Agent 1 · Document ✓</span>');
   if (r.intent) badges.push('<span class="badge purple">Agent 5 · ' + esc(r.intent.intent) + " " + Math.round(r.intent.confidence * 100) + "% · " + esc(r.intent.method) + "</span>");
@@ -884,7 +897,7 @@ function renderFinal(shell, r) {
     extras += '<div class="auto-card"><div class="auto-head">⚡ Automation · ' + esc(r.automation.action) + '</div><div class="auto-actions">' + actions + "</div></div>";
   }
 
-  /* Source cards (mentor item #5) */
+  /* Source cards */
   if (r.sources && r.sources.length) {
     extras += '<div class="sources"><span class="sources-label">Sources · ' + r.sources.length + "</span>";
     r.sources.forEach((s, i) => {
@@ -916,7 +929,7 @@ function renderFinal(shell, r) {
   if (state.tts) speakText(r.answer);
 }
 
-/* ================= Speech: TTS + STT (browser-native) ================= */
+/* ================= Speech: TTS + STT ================= */
 function speakText(text) {
   try {
     speechSynthesis.cancel();
@@ -974,7 +987,7 @@ $("micBtn").onclick = async () => {
     const form = new FormData();
     form.append("file", blob, "voice.webm");
     try {
-      const r = await fetch("/speech/transcribe", { method: "POST", body: form });
+      const r = await authFetch("/speech/transcribe", { method: "POST", body: form });
       const j = await r.json();
       if (!r.ok) throw new Error(j.detail || "Transcription failed");
       if (!j.text) { toast("Didn't catch any speech — try again", true); return; }
@@ -1098,7 +1111,7 @@ function bindEmptyStateHandlers() {
 $("exportsBtn").onclick = async () => {
   closeSidebar();
   try {
-    const r = await fetch("/exports");
+    const r = await authFetch("/exports");
     const j = await r.json();
     if (!j.files.length) { toast("No generated files yet"); return; }
     hideEmpty();
@@ -1120,6 +1133,21 @@ updateSend();
 bindEmptyStateHandlers();
 /* Warm the TTS voice list (some browsers return [] until this fires). */
 try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); } catch (e) {}
+
+/* This page isn't gated server-side (see the route's docstring): a
+   plain navigation carries no reliable proof of a Clerk session
+   across its separate frontend-api domain. Confirm sign-in here,
+   client-side, against the actual Clerk session object -- if it's
+   missing, bounce back to the landing page to sign in. Every real API
+   call underneath is independently protected by require_user via the
+   bearer token, regardless of this check. */
+(async () => {
+  const clerk = await clerkReady();
+  if (!clerk || !clerk.session) { location.href = "/"; return; }
+  const btn = $("signOutBtn");
+  btn.style.display = "";
+  btn.onclick = async () => { await clerk.signOut(); location.href = "/"; };
+})();
 </script>
 </body>
 </html>
