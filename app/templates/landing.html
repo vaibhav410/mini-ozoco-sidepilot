@@ -36,7 +36,7 @@
   /* ---------- Navbar ---------- */
   .nav {
     position: sticky; top: 0; z-index: 30;
-    display: flex; align-items: center; gap: 18px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 18px;
     padding: 16px 24px; border-bottom: 1px solid var(--border);
     background: rgba(0,0,0,.75); backdrop-filter: blur(12px);
   }
@@ -138,10 +138,12 @@
   .feature-card .stat span { font-size: 11px; color: var(--text-3); }
   .feature-card .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
   .feature-card .pill { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
-  .feature-card.wide { grid-column: span 2; }
-  .mini-wf { display: flex; align-items: center; gap: 4px; margin-top: 16px; flex-wrap: wrap; }
-  .mini-wf span { font-size: 10.5px; font-weight: 600; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
-  .mini-wf i { color: var(--text-3); font-size: 11px; }
+
+  /* Pipeline grid: the 5 workflow stages, shown as one sequential row
+     on wide screens (reinforcing "pipeline") rather than the generic
+     3-column feature grid, which would wrap it 3+2. */
+  .pipeline-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .pipeline-grid .feature-card .icon { font-weight: 800; font-size: 15px; }
 
   /* ---------- Final CTA ---------- */
   .final-cta { text-align: center; border-top: 1px solid var(--border); }
@@ -164,11 +166,35 @@
     box-shadow: 0 10px 40px rgba(0,0,0,.6); max-width: 90vw;
   }
 
+  /* Respect reduced-motion: the rotating CTA rim is decorative --
+     users who opt out of motion (and low-power devices) get a static
+     gradient border instead, at zero animation cost. */
+  @media (prefers-reduced-motion: reduce) {
+    .cta-glow { animation: none; }
+    html { scroll-behavior: auto; }
+  }
+
+  /* Tablet: 2-up grids instead of 3/5-up. */
+  @media (max-width: 1024px) {
+    .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    .pipeline-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* Phone: single column everywhere, tighter spacing, nav trimmed to
+     the essentials so it never overflows a narrow viewport. */
   @media (max-width: 760px) {
     .nav-links { display: none; }
-    .feature-grid { grid-template-columns: 1fr; }
-    .feature-card.wide { grid-column: span 1; }
+    .feature-grid, .pipeline-grid { grid-template-columns: 1fr; }
     section { padding: 56px 20px; }
+    .hero { padding: 64px 16px 32px; }
+    .hero-cta-row { gap: 14px 20px; }
+  }
+
+  @media (max-width: 400px) {
+    .nav { padding: 12px 14px; gap: 10px; }
+    .nav .brand { font-size: 14px; }
+    .nav-btn { padding: 6px 12px; font-size: 12.5px; }
+    .cta-glow > span { padding: 13px 20px; font-size: 14px; }
   }
 </style>
 </head>
@@ -182,7 +208,6 @@
     <a href="https://github.com/vaibhav410/mini-ozoco-sidepilot" target="_blank" rel="noopener">GitHub</a>
   </div>
   <div class="spacer"></div>
-  <button class="nav-btn" id="navSignIn">Sign In</button>
   <button class="nav-btn primary" id="navStart">Start Chatting</button>
 </nav>
 
@@ -227,15 +252,6 @@
     </div>
     <div class="feature-grid">
 
-      <div class="feature-card wide">
-        <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <h3>Workflow Engine</h3>
-        <p>Every request travels the same five-stage pipeline — independently timed, logged and traceable, with each stage replaceable without touching the rest.</p>
-        <div class="mini-wf">
-          <span>Observe</span><i>→</i><span>Understand</span><i>→</i><span>Analyze</span><i>→</i><span>Guide</span><i>→</i><span>Automate</span>
-        </div>
-      </div>
-
       <div class="feature-card">
         <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
         <h3>Screen Understanding</h3>
@@ -256,7 +272,7 @@
         <p>Answers stream token by token over SSE, with live pipeline progress and a stop button — not a spinner and a wait.</p>
       </div>
 
-      <div class="feature-card wide">
+      <div class="feature-card">
         <div class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
         <h3>Grounded, Validated Answers</h3>
         <p>Every answer is generated strictly from retrieved document content and independently fact-checked by a validation agent before it reaches you — unsupported claims are withheld, not guessed.</p>
@@ -289,7 +305,7 @@
       <h2>How it works</h2>
       <p>One pipeline, every request — the same five stages you'll see traced live inside the app.</p>
     </div>
-    <div class="feature-grid">
+    <div class="pipeline-grid">
       <div class="feature-card"><div class="icon">1</div><h3>Observe</h3><p>Gathers context: your documents, chat history, and anything on screen you've shared.</p></div>
       <div class="feature-card"><div class="icon">2</div><h3>Understand</h3><p>Resolves follow-ups and classifies what you actually want — a question, a summary, an email, an export.</p></div>
       <div class="feature-card"><div class="icon">3</div><h3>Analyze</h3><p>Routes to the right document and retrieves the exact passages that matter.</p></div>
@@ -342,7 +358,6 @@ async function goToApp() {
   const el = document.getElementById(id);
   if (el) el.onclick = goToApp;
 });
-document.getElementById("navSignIn").onclick = goToApp;
 
 /* Live document count for the trust row -- real data, not a fake stat. */
 fetch("/health").then((r) => r.json()).then((j) => {
@@ -356,7 +371,6 @@ fetch("/health").then((r) => r.json()).then((j) => {
   const clerk = await clerkReady();
   if (!clerk) return;
   if (clerk.session) {
-    document.getElementById("navSignIn").textContent = "Sign In";
     document.getElementById("navStart").textContent = "Go to App";
   }
   clerk.addListener((payload) => {
