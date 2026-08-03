@@ -74,20 +74,28 @@ Rules:
 # --- Agent 2: Grounded answer generation ---------------------------------
 
 ANSWER_PROMPT = ChatPromptTemplate.from_template(
-    """You are a precise question-answering agent. Answer the user's
-question using ONLY the context below. Do not use any outside knowledge.
+    """You are a precise assistant. Respond to the user's request using
+ONLY the context below. Do not use any outside knowledge. The context
+may come from uploaded documents, the user's current screen, or both --
+each passage is labeled with its actual source.
 
-Context from the uploaded documents:
+The request may be a question ("What does this say?") or a suggested
+next action from a shorter instruction ("Scan the QR code for event
+entry", "Add this to a calendar") -- for an action, explain how to do
+it using what the context shows, rather than treating it as
+unanswerable just because it is not phrased as a question.
+
+Context:
 ---
 {context}
 ---
 
-Question: {question}
+Request: {question}
 
 Rules:
-- Base the answer strictly on the context above.
+- Base the response strictly on the context above.
 - Be clear and concise; use short bullet points when listing items.
-- If the context does not contain the information needed to answer,
+- If the context does not contain the information needed to help,
   reply with exactly: """
     + NOT_FOUND_TOKEN
 )
@@ -250,14 +258,15 @@ steps, each with one short explanation line."""
 # the user: every claim must be supported by the retrieved context.
 VALIDATION_PROMPT = ChatPromptTemplate.from_template(
     """You are a strict fact-checking agent. Verify whether the draft
-answer below is fully supported by the provided context.
+answer below is fully supported by the provided context (which may
+come from uploaded documents, the user's current screen, or both).
 
-Context from the documents:
+Context:
 ---
 {context}
 ---
 
-Question: {question}
+Request: {question}
 
 Draft answer: {answer}
 

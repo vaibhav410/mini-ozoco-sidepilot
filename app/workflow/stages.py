@@ -18,6 +18,7 @@ A note starting with ``"skipped"`` marks the stage as skipped in the
 trace -- see the engine's status convention.
 """
 
+import re
 from typing import Callable
 
 from langchain_core.documents import Document
@@ -42,13 +43,27 @@ from app.workflow.context import WorkflowContext
 logger = get_logger(__name__)
 
 NOT_FOUND_MESSAGE = (
-    "The answer to this question was not found in the uploaded documents."
+    "The answer to this question was not found in the available context."
 )
 UNSUPPORTED_MESSAGE = (
-    "The generated answer could not be verified against the documents, "
-    "so it was withheld to avoid giving you unreliable information."
+    "The generated answer could not be verified against the available "
+    "context, so it was withheld to avoid giving you unreliable information."
 )
 SNIPPET_LENGTH = 240
+
+# Keywords signaling a request is actually about an uploaded document.
+# Deliberately narrower than the automation agent's grounding gate:
+# "screen" is NOT a trigger here -- mentioning the screen should point
+# AWAY from document retrieval, not toward it. Without this gate, a
+# follow-up about the screen (e.g. a suggested action like "Scan the
+# QR code for event entry") gets diluted with irrelevant document
+# chunks and Agent 2 incorrectly reports "not found" even though the
+# screen chunk alone has the answer.
+_DOCUMENT_FOCUS_PATTERN = re.compile(
+    r"\b(resume|cv|document|docs?|file|report|invoice|paper|"
+    r"candidate|applicant|summarize|summary)\b",
+    re.IGNORECASE,
+)
 
 # Intents that trigger the Automate stage (fulfilled by Agent 6 in a
 # later module; every other intent skips automation entirely).
@@ -142,7 +157,19 @@ class AnalyzeStage:
 
     def run(self, context: WorkflowContext) -> str:
         registry = vector_store_manager.registry
-        if registry:
+        # Skip document retrieval when screen context is attached and
+        # nothing about the request points at a document -- an explicit
+        # doc_id pin (from the sidebar's document scope) always
+        # overrides this and forces retrieval, since that's a deliberate
+        # user choice.
+        skip_documents = (
+            bool(registry)
+            and context.doc_id is None
+            and context.screen_context is not None
+            and not _question_targets_documents(context.standalone_question, registry)
+        )
+
+        if registry and not skip_documents:
             context.routed_doc_id = context.doc_id or get_response_agent().route(
                 context.standalone_question, registry
             )
@@ -153,6 +180,8 @@ class AnalyzeStage:
                 f"routed={context.routed_doc_id or 'all documents'}, "
                 f"chunks={len(context.chunks)}"
             )
+        elif skip_documents:
+            note = "skipped document retrieval (screen-focused request)"
         else:
             note = "no documents (screen-only mode)"
 
@@ -278,6 +307,23 @@ def build_default_stages() -> list:
         GuideStage(),
         AutomateStage(),
     ]
+
+
+def _question_targets_documents(question: str, registry: dict) -> bool:
+    """Whether a request is actually about an uploaded document.
+
+    True on a document-focus keyword or a mention of an uploaded
+    filename; false otherwise (including when the request mentions
+    "screen" -- that should point away from document retrieval).
+    """
+    if _DOCUMENT_FOCUS_PATTERN.search(question):
+        return True
+    lowered = question.lower()
+    for meta in registry.values():
+        stem = meta["filename"].rsplit(".", 1)[0].lower()
+        if len(stem) > 3 and stem in lowered:
+            return True
+    return False
 
 
 def _screen_chunk(screen_context: dict) -> Document:

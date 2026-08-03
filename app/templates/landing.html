@@ -103,19 +103,6 @@
   .agent-dots i:first-child { margin-left: 0; }
   .hero-trust b { color: var(--text); font-weight: 600; }
 
-  /* ---------- Built-with strip (honest -- real tech, not fake customers) ---------- */
-  .built-with { padding: 44px 20px 20px; text-align: center; }
-  .built-with .label { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); margin-bottom: 26px; }
-  .tech-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 760px; margin: 0 auto; }
-  .tech-chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 500; color: var(--text-2);
-    border: 1px solid var(--border); border-radius: 10px; padding: 9px 16px;
-    background: var(--surface); transition: all .15s;
-  }
-  .tech-chip:hover { border-color: var(--border-2); color: var(--text); }
-  .tech-chip .dot { width: 7px; height: 7px; border-radius: 50%; }
-
   /* ---------- Feature grid ---------- */
   .section-head { text-align: center; margin-bottom: 48px; }
   .section-head h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; letter-spacing: -.03em; margin-bottom: 12px; }
@@ -231,18 +218,6 @@
     <span><b id="heroDocCount">0</b> documents indexed right now · every answer validated by Agent 3</span>
   </div>
 </section>
-
-<div class="built-with">
-  <div class="label">Built with</div>
-  <div class="tech-row">
-    <span class="tech-chip"><i class="dot" style="background:#009688"></i>FastAPI</span>
-    <span class="tech-chip"><i class="dot" style="background:#4285F4"></i>Google Gemini</span>
-    <span class="tech-chip"><i class="dot" style="background:#0467DF"></i>FAISS</span>
-    <span class="tech-chip"><i class="dot" style="background:#4169E1"></i>PostgreSQL</span>
-    <span class="tech-chip"><i class="dot" style="background:#1C3C3C"></i>LangChain</span>
-    <span class="tech-chip"><i class="dot" style="background:#2496ED"></i>Docker</span>
-  </div>
-</div>
 
 <section id="features">
   <div class="wrap">
